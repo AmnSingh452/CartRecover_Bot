@@ -1,7 +1,7 @@
 // Configuration
-const API_BASE_URL = 'https://shopify-chatbot-trial.onrender.com/api/chat';
-const HISTORY_API_URL = 'https://shopify-chatbot-trial.onrender.com/api/session';
-const CUSTOMER_UPDATE_URL = 'https://shopify-chatbot-trial.onrender.com/api/customer/update';
+const API_BASE_URL = 'https://cartrecovery-bot.onrender.com/api/chat';
+const HISTORY_API_URL = 'https://cartrecovery-bot.onrender.com/api/session';
+const CUSTOMER_UPDATE_URL = 'https://cartrecovery-bot.onrender.com/api/customer/update';
 let sessionId = localStorage.getItem('shopifyChatbotSessionId') || null;
 let customerName = localStorage.getItem('shopifyChatbotCustomerName') || null;
 
@@ -11,7 +11,7 @@ console.log('Initial customerName:', customerName);
 const widgetContainer = document.getElementById('shopify-chatbot-widget');
 if (widgetContainer) {
     widgetContainer.innerHTML = `
-        <button id="chat-toggle-button" class="chat-toggle-button">💬</button>
+        <button id="chat-toggle-button" ,class="chat-toggle-button">💬</button>
         <div id="chat-window" class="chat-window chat-window-hidden">
             <div class="chat-header">
                 <span>Shopify Chatbot</span>
