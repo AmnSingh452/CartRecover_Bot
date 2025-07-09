@@ -5,15 +5,17 @@ import logging
 import time
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
-
+from routes import shopify
 # Import shared instances from the new dependencies file
 from dependencies import session_manager, agent_coordinator
 
 # Configure logging
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Shopify Chatbot API")
+app.include_router(shopify.router)
 
 # Configure CORS with more permissive settings
 app.add_middleware(
