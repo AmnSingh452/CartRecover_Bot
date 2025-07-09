@@ -1,7 +1,7 @@
 // Configuration
-const API_BASE_URL = 'https://cartrecovery-bot.onrender.com/api/chat';
-const HISTORY_API_URL = 'https://cartrecovery-bot.onrender.com/api/session';
-const CUSTOMER_UPDATE_URL = 'https://cartrecovery-bot.onrender.com/api/customer/update';
+const API_BASE_URL = 'https://cartrecover-bot.onrender.com/api/chat';
+const HISTORY_API_URL = 'https://cartrecover-bot.onrender.com/api/session';
+const CUSTOMER_UPDATE_URL = 'https://cartrecover-bot.onrender.com/api/customer/update';
 let sessionId = localStorage.getItem('shopifyChatbotSessionId') || null;
 let customerName = localStorage.getItem('shopifyChatbotCustomerName') || null;
 
@@ -11,7 +11,7 @@ console.log('Initial customerName:', customerName);
 const widgetContainer = document.getElementById('shopify-chatbot-widget');
 if (widgetContainer) {
     widgetContainer.innerHTML = `
-        <button id="chat-toggle-button" ,class="chat-toggle-button">💬</button>
+        <button id="chat-toggle-button" class="chat-button">💬</button>
         <div id="chat-window" class="chat-window chat-window-hidden">
             <div class="chat-header">
                 <span>Shopify Chatbot</span>
@@ -20,7 +20,7 @@ if (widgetContainer) {
             <div id="chat-messages" class="chat-messages"></div>
             <div class="chat-input-area">
                 <input id="chat-input" class="chat-input" type="text" placeholder="Type your message..." autocomplete="off" />
-                <button id="chat-send-button" class="chat-send-button">Send</button>
+                <button id="chat-send-button" class="send-button">&#9658;</button>
             </div>
             <button id="new-chat-button" class="new-chat-button">New Chat</button>
         </div>
@@ -81,9 +81,12 @@ function checkCartAndPrompt() {
           });
           // Example upsell
           showBotMessage("Customers who bought these items also loved our accessories! Would you like a recommendation?");
+          // Fetch and show recommendations
+          const productIds = cart.items.map(item => item.product_id);
+          fetchAndShowRecommendations(productIds);
         }
       });
-  }
+}
 
 // Helper to render all messages in the chat UI
 function renderMessages(messages) {
@@ -279,4 +282,47 @@ function showBotMessage(message) {
   messageDiv.textContent = message;
   chatMessages.appendChild(messageDiv);
   chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+async function fetchAndShowRecommendations(productIds = [], customerId = null) {
+    try {
+        const response = await fetch('/api/recommendations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ product_ids: productIds, customer_id: customerId })
+        });
+        const data = await response.json();
+        if (data.recommendations && data.recommendations.length > 0) {
+            showBotMessage("You may also like:");
+            data.recommendations.forEach(product => {
+                showProductRecommendation(product);
+            });
+        } else {
+            showBotMessage("Sorry, I couldn't find any recommendations right now.");
+        }
+    } catch (error) {
+        showBotMessage("Sorry, there was an error fetching recommendations.");
+        console.error(error);
+    }
+}
+
+function showProductRecommendation(product) {
+    const chatMessages = document.getElementById('chat-messages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message bot-message';
+
+    // Build product card with image, title, price, and link
+    messageDiv.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;">
+            <a href="/products/${product.handle}" target="_blank" style="display:inline-block;">
+                <img src="${product.images && product.images[0] ? product.images[0].src : product.image ? product.image.src : ''}" alt="${product.title}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;">
+            </a>
+            <div>
+                <a href="/products/${product.handle}" target="_blank" style="font-weight:bold;color:#007bff;text-decoration:none;">${product.title}</a>
+                <div style="color:#333;font-size:14px;">${product.price ? '$' + product.price : ''}</div>
+            </div>
+        </div>
+    `;
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 }
