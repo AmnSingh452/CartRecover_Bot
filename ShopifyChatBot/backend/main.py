@@ -23,7 +23,7 @@ app.add_middleware(
     allow_origins=[
        "https://4ja0wp-y1.myshopify.com",  # Your Shopify store
        "http://0.0.0.0:10000",            # Local dev (if needed)
-       "http://127.0.0.1:3000",            # Local dev (if needed)
+       "http://localhost:8000/api/recommendations",            # Local dev (if needed)
        "http://localhost:8000",            # If you access API directly
     ],
     allow_credentials=True,
