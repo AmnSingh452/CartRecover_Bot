@@ -3,8 +3,8 @@ import requests
 import os
 
 router = APIRouter()
-SHOPIFY_STORE_DOMAIN = os.getenv("SHOPIFY_STORE_DOMAIN")
-SHOPIFY_ADMIN_API_TOKEN = os.getenv("SHOPIFY_ADMIN_API_TOKEN")
+SHOPIFY_STORE_DOMAIN = os.getenv("SHOPIFY_STORE_URL")
+SHOPIFY_ADMIN_API_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
 
 @router.post("/api/recommendations")
 async def get_recommendations(request: Request):
@@ -12,6 +12,11 @@ async def get_recommendations(request: Request):
     product_ids = data.get("product_ids", [])
     customer_id = data.get("customer_id")
     recommendations = []
+
+    print("Received product_ids:", product_ids)
+    print("Received customer_id:", customer_id)
+    print("SHOPIFY_STORE_DOMAIN:", SHOPIFY_STORE_DOMAIN)
+    print("SHOPIFY_ADMIN_API_TOKEN:", SHOPIFY_ADMIN_API_TOKEN)
 
     # 1. Cart-based recommendations
     for pid in product_ids:
@@ -54,4 +59,6 @@ async def get_recommendations(request: Request):
         if rec["id"] not in seen:
             unique_recs.append(rec)
             seen.add(rec["id"])
+        print("Returning recommendations:", unique_recs[:4])
     return {"recommendations": unique_recs[:4]}
+
