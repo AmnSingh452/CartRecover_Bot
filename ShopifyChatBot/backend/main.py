@@ -20,12 +20,7 @@ app.include_router(shopify.router)
 # Configure CORS with more permissive settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-       "https://4ja0wp-y1.myshopify.com",  # Your Shopify store
-       "http://0.0.0.0:10000",            # Local dev (if needed)
-       "http://localhost:8000/api/recommendations",            # Local dev (if needed)
-       "http://localhost:8000",            # If you access API directly
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
