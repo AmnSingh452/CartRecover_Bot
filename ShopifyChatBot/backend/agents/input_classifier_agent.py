@@ -35,7 +35,7 @@ class InputClassifierAgent:
         """
         logger.debug(f"Classifying input: {user_input}")
         
-        system_message = {"role": "system", "content": "You are an expert in classifying user intent for an e-commerce chatbot. Classify the user's intent into one of the following categories: 'order', 'recommendation', 'product_price', 'product_stock', 'return_policy', or 'general'. Provide a confidence score (0.0 to 1.0) and a brief explanation."
+        system_message = {"role": "system", "content": "You are an expert in classifying user intent for an e-commerce chatbot. Classify the user's intent into one of the following categories: 'order', 'recommendation', 'product_price', 'product_stock', 'return_policy', 'size_inquiry', or 'general'. Provide a confidence score (0.0 to 1.0) and a brief explanation."
         }
         
         examples = [
@@ -66,6 +66,16 @@ class InputClassifierAgent:
             {"role": "assistant", "content": "{\"intent\": \"product_stock\", \"confidence\": 0.95, \"explanation\": \"User is inquiring about product availability.\"}"},
             {"role": "user", "content": "Do you have size M in the black dress?"},
             {"role": "assistant", "content": "{\"intent\": \"product_stock\", \"confidence\": 0.9, \"explanation\": \"User is asking about stock for a specific variant.\"}"},
+
+            # Size Inquiry intent examples
+            {"role": "user", "content": "What size should I get?"},
+            {"role": "assistant", "content": "{\"intent\": \"size_inquiry\", \"confidence\": 0.95, \"explanation\": \"User is asking for sizing advice.\"}"},
+            {"role": "user", "content": "Do you have a size chart?"},
+            {"role": "assistant", "content": "{\"intent\": \"size_inquiry\", \"confidence\": 0.93, \"explanation\": \"User is asking for a size chart.\"}"},
+            {"role": "user", "content": "Will medium fit me?"},
+            {"role": "assistant", "content": "{\"intent\": \"size_inquiry\", \"confidence\": 0.92, \"explanation\": \"User is asking about fit for a specific size.\"}"},
+            {"role": "user", "content": "I'm not sure about the sizing."},
+            {"role": "assistant", "content": "{\"intent\": \"size_inquiry\", \"confidence\": 0.9, \"explanation\": \"User is expressing uncertainty about sizing.\"}"},
 
             # Return Policy intent examples
             {"role": "user", "content": "What's your return policy?"},

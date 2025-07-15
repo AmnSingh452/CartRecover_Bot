@@ -7,6 +7,7 @@ from agents.recommendation_agent import RecommendationAgent
 from agents.order_agent import OrderAgent
 from agents.gpt_humanizer_agent import GPTHumanizerAgent
 from agents.product_info_agent import ProductInfoAgent
+from agents.size_chart_agent import SIZE_CHARTS
 
 logger = logging.getLogger(__name__)
 
@@ -229,6 +230,37 @@ class AgentCoordinator:
                     "confidence": classification["confidence"],
                     "agent_used": "recommendation_agent",
                     "recommendations": result["recommendations"],
+                    "customer_info": customer_info
+                }
+            elif classification["intent"] == "size_inquiry":
+                # Handle size inquiry intent
+                shop_domain = None
+                if customer_info and isinstance(customer_info, dict):
+                    shop_domain = customer_info.get("shop_domain")
+                if not shop_domain:
+                    shop_domain = "4ja0wp-y1.myshopify.com"  # Default for demo; replace with dynamic logic as needed
+                chart = SIZE_CHARTS.get(shop_domain)
+                if chart:
+                    if chart["type"] == "html":
+                        raw_agent_response = f"Here’s our size chart:<br>{chart['html']}"
+                    elif chart["type"] == "image":
+                        raw_agent_response = f"Here’s our size chart:<br><img src='{chart['url']}' style='max-width:100%;border-radius:8px;'>"
+                    elif chart["type"] == "link":
+                        raw_agent_response = f"Here’s our size chart: <a href='{chart['url']}' target='_blank'>View Size Chart</a>"
+                    else:
+                        raw_agent_response = "Sorry, we don't have a size chart for this shop yet."
+                else:
+                    raw_agent_response = "Sorry, we don't have a size chart for this shop yet."
+                humanized_response = await self.humanizer_agent.humanize_response({
+                    "response": raw_agent_response,
+                    "agent_used": "size_chart_agent",
+                    "history": history,
+                    "customer_info": customer_info
+                })
+                return {
+                    "response": humanized_response,
+                    "confidence": classification["confidence"],
+                    "agent_used": "size_chart_agent",
                     "customer_info": customer_info
                 }
             elif classification["intent"] in ["product_price", "product_stock", "return_policy", "product_info"]:
