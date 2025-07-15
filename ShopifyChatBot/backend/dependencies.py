@@ -2,7 +2,6 @@ from session_manager import SessionManager
 from agents.agent_coordinator import AgentCoordinator
 from agents.guard_agent import GuardAgent
 from agents.order_agent import OrderAgent
-from agents.size_chart_agent import router as size_chart_router
 
 # Create single, shared instances of services
 session_manager = SessionManager()
@@ -16,5 +15,4 @@ __all__ = [
     "agent_coordinator",
     "guard_agent",
     "order_agent",
-    "size_chart_router",
 ] 
