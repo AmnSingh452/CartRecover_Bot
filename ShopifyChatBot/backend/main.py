@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any
 from routes import shopify
 # Import shared instances from the new dependencies file
 from dependencies import session_manager, agent_coordinator
+from agents.size_chart_agent import router as size_chart_router
 
 # Configure logging
 
@@ -29,6 +30,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(chatbot_router, prefix="/api")
+app.include_router(size_chart_router, prefix="/api")
 
 class ChatRequest(BaseModel):
     message: str
