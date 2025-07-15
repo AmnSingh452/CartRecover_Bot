@@ -21,11 +21,6 @@ const HESITATION_PHRASES = [
   "can't decide"
 ];
 
-// Size chart query detection
-const SIZE_QUERY_PHRASES = [
-  "size chart", "sizing", "what size", "which size", "fit", "how big", "how small", "measurements"
-];
-
 console.log('Script loaded. Initial sessionId:', sessionId);
 console.log('Initial customerName:', customerName);
 
@@ -233,13 +228,6 @@ async function sendMessage() {
         return;
     }
 
-    // Detect size chart queries
-    const lowerMsg = message.toLowerCase();
-    if (SIZE_QUERY_PHRASES.some(phrase => lowerMsg.includes(phrase))) {
-        offerSizeChart();
-        // Optionally, return here if you want to only show the chart and not send to backend
-    }
-
     // Add user message to UI
     const currentMessages = Array.from(chatMessages.children).map(div => ({
         role: div.classList.contains('user-message') ? 'user' : 'bot',
@@ -414,26 +402,5 @@ async function offerAbandonedCartDiscount() {
         // Optionally, add tracking here
     } else {
         showBotMessage("Sorry, there was an issue generating your discount code.");
-    }
-}   
-
-async function offerSizeChart() {
-    const shopDomain = SHOPIFY_STORE_DOMAIN; // Already defined in your code
-    const response = await fetch('https://cartrecover-bot.onrender.com/api/size-chart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shop_domain: shopDomain })
-    });
-    const data = await response.json();
-    if (data.success && data.chart) {
-        if (data.chart.type === "image") {
-            showBotMessage(`<b>Size Chart:</b><br><img src="${data.chart.url}" alt="Size Chart" style="max-width:100%;border-radius:8px;">`);
-        } else if (data.chart.type === "html") {
-            showBotMessage(`<b>Size Chart:</b><br>${data.chart.html}`);
-        } else if (data.chart.type === "link") {
-            showBotMessage(`<b>Size Chart:</b> <a href="${data.chart.url}" target="_blank">View Size Chart</a>`);
-        }
-    } else {
-        showBotMessage("Sorry, I couldn't find a size chart for this shop.");
     }
 }   
