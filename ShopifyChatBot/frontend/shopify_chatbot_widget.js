@@ -2,8 +2,29 @@
 const API_BASE_URL = 'https://cartrecover-bot.onrender.com/api/chat';
 const HISTORY_API_URL = 'https://cartrecover-bot.onrender.com/api/session';
 const CUSTOMER_UPDATE_URL = 'https://cartrecover-bot.onrender.com/api/customer/update';
+const RECOMMENDATIONS_API_URL = 'https://cartrecover-bot.onrender.com/api/recommendations'; // <-- Replace with your actual backend URL
+const DISCOUNT_API_URL = 'https://cartrecover-bot.onrender.com/api/abandoned-cart-discount';
 let sessionId = localStorage.getItem('shopifyChatbotSessionId') || null;
 let customerName = localStorage.getItem('shopifyChatbotCustomerName') || null;
+
+// Hesitation phrases for discount trigger
+const HESITATION_PHRASES = [
+  "not sure",
+  "maybe later",
+  "too expensive",
+  "let me think",
+  "i'll come back",
+  "not now",
+  "have to check",
+  "need to think",
+  "don't know",
+  "can't decide"
+];
+
+// Size chart query detection
+const SIZE_QUERY_PHRASES = [
+  "size chart", "sizing", "what size", "which size", "fit", "how big", "how small", "measurements"
+];
 
 console.log('Script loaded. Initial sessionId:', sessionId);
 console.log('Initial customerName:', customerName);
@@ -84,6 +105,14 @@ function checkCartAndPrompt() {
           // Fetch and show recommendations
           const productIds = cart.items.map(item => item.product_id);
           fetchAndShowRecommendations(productIds);
+
+          // --- Discount logic ---
+          if (!localStorage.getItem('shopifyChatbotDiscountOffered')) {
+            setTimeout(() => {
+              offerAbandonedCartDiscount();
+              localStorage.setItem('shopifyChatbotDiscountOffered', 'true');
+            }, 10000); // 10 seconds delay before offering discount
+          }
         }
       });
 }
@@ -165,6 +194,7 @@ if (newChatButton) {
         // Clear session and customer info from local storage
         localStorage.removeItem('shopifyChatbotSessionId');
         localStorage.removeItem('shopifyChatbotCustomerName');
+        localStorage.removeItem('shopifyChatbotDiscountOffered');
         
         // Reset in-memory variables
         sessionId = null;
@@ -190,12 +220,24 @@ async function sendMessage() {
     // Handle the case where the user is providing their name
     const isNameSubmission = !customerName && chatMessages.textContent.includes("What's your name?");
     if (isNameSubmission) {
-        customerName = message;
-        localStorage.setItem('shopifyChatbotCustomerName', customerName);
-        await updateCustomerInfo(customerName);
-        addInitialBotMessage(`Nice to meet you, ${customerName}! How can I help you?`);
+        const extractedName = extractNameFromInput(message);
+        if (extractedName) {
+            customerName = extractedName;
+            localStorage.setItem('shopifyChatbotCustomerName', customerName);
+            await updateCustomerInfo(customerName);
+            addInitialBotMessage(`Nice to meet you, ${customerName}! How can I help you?`);
+        } else {
+            addInitialBotMessage("Sorry, I didn't catch your name. Could you please tell me your first name?");
+        }
         chatInput.value = '';
         return;
+    }
+
+    // Detect size chart queries
+    const lowerMsg = message.toLowerCase();
+    if (SIZE_QUERY_PHRASES.some(phrase => lowerMsg.includes(phrase))) {
+        offerSizeChart();
+        // Optionally, return here if you want to only show the chart and not send to backend
     }
 
     // Add user message to UI
@@ -233,6 +275,15 @@ async function sendMessage() {
 
             // Render the messages
             renderMessages(payload.history);
+
+            // Hesitation-triggered discount logic
+            if (!localStorage.getItem('shopifyChatbotDiscountOffered')) {
+                const lowerMsg = message.toLowerCase();
+                if (HESITATION_PHRASES.some(phrase => lowerMsg.includes(phrase))) {
+                    offerAbandonedCartDiscount();
+                    localStorage.setItem('shopifyChatbotDiscountOffered', 'true');
+                }
+            }
         } else {
             console.log('Entering ERROR block');
             const errorMessage = data.message || 'Unknown error occurred';
@@ -279,19 +330,20 @@ function showBotMessage(message) {
   const chatMessages = document.getElementById('chat-messages');
   const messageDiv = document.createElement('div');
   messageDiv.className = 'message bot-message';
-  messageDiv.textContent = message;
+  messageDiv.innerHTML = message; // Use innerHTML to render HTML
   chatMessages.appendChild(messageDiv);
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 async function fetchAndShowRecommendations(productIds = [], customerId = null) {
     try {
-        const response = await fetch('/api/recommendations', {
+        const response = await fetch(RECOMMENDATIONS_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ product_ids: productIds, customer_id: customerId })
         });
         const data = await response.json();
+        console.log('Recommendations API response:', data); // Debug log
         if (data.recommendations && data.recommendations.length > 0) {
             showBotMessage("You may also like:");
             data.recommendations.forEach(product => {
@@ -315,14 +367,73 @@ function showProductRecommendation(product) {
     messageDiv.innerHTML = `
         <div style="display:flex;align-items:center;gap:10px;">
             <a href="/products/${product.handle}" target="_blank" style="display:inline-block;">
-                <img src="${product.images && product.images[0] ? product.images[0].src : product.image ? product.image.src : ''}" alt="${product.title}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;">
+                <img src="${product.images && product.images[0] ? product.images[0].src : (product.image ? product.image.src : '')}" alt="${product.title}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;">
             </a>
             <div>
                 <a href="/products/${product.handle}" target="_blank" style="font-weight:bold;color:#007bff;text-decoration:none;">${product.title}</a>
-                <div style="color:#333;font-size:14px;">${product.price ? '$' + product.price : ''}</div>
+                <div style="color:#333;font-size:14px;">
+                    ${product.variants && product.variants[0] ? '$' + product.variants[0].price : ''}
+                </div>
             </div>
         </div>
     `;
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
+
+function extractNameFromInput(input) {
+    input = input.trim();
+    // Try to match "my name is X", "I am X", "I'm X"
+    let match = input.match(/(?:my name is|i am|i'm)\s+([a-zA-Z]+)/i);
+    if (match) {
+        return match[1];
+    }
+    // If input is a single word, assume it's a name
+    if (/^[a-zA-Z]+$/.test(input)) {
+        return input;
+    }
+    // Otherwise, return null (no name detected)
+    return null;
+}
+
+const SHOPIFY_STORE_DOMAIN = '4ja0wp-y1.myshopify.com';
+async function offerAbandonedCartDiscount() {
+    const response = await fetch(DISCOUNT_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ discount_percentage: 10, session_id: sessionId })
+    });
+    const data = await response.json();
+    if (data.discount_code) {
+        showBotMessage(
+          `🎉 <b>Special Offer!</b><br>
+          Use code <span style="background:#f4f4f4;padding:4px 8px;border-radius:4px;font-weight:bold;font-size:1.1em;">${data.discount_code}</span> at checkout.<br>
+          <a href="https://${SHOPIFY_STORE_DOMAIN}/cart" target="_blank" style="color:#007bff;text-decoration:underline;">Click here to complete your purchase</a>!<br>
+          <span style="color:#d9534f;font-size:0.95em;">⏰ Hurry! This code is valid for the next 1 hour or until you complete your purchase.</span>`
+        );
+        // Optionally, add tracking here
+    } else {
+        showBotMessage("Sorry, there was an issue generating your discount code.");
+    }
+}   
+
+async function offerSizeChart() {
+    const shopDomain = SHOPIFY_STORE_DOMAIN; // Already defined in your code
+    const response = await fetch('https://cartrecover-bot.onrender.com/api/size-chart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shop_domain: shopDomain })
+    });
+    const data = await response.json();
+    if (data.success && data.chart) {
+        if (data.chart.type === "image") {
+            showBotMessage(`<b>Size Chart:</b><br><img src="${data.chart.url}" alt="Size Chart" style="max-width:100%;border-radius:8px;">`);
+        } else if (data.chart.type === "html") {
+            showBotMessage(`<b>Size Chart:</b><br>${data.chart.html}`);
+        } else if (data.chart.type === "link") {
+            showBotMessage(`<b>Size Chart:</b> <a href="${data.chart.url}" target="_blank">View Size Chart</a>`);
+        }
+    } else {
+        showBotMessage("Sorry, I couldn't find a size chart for this shop.");
+    }
+}   
