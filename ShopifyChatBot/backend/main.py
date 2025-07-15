@@ -7,8 +7,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from routes import shopify
 # Import shared instances from the new dependencies file
-from dependencies import session_manager, agent_coordinator
-from agents.size_chart_agent import router as size_chart_router
+from dependencies import session_manager, agent_coordinator, size_chart_router
 
 # Configure logging
 
