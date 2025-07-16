@@ -247,7 +247,11 @@ class AgentCoordinator:
                     elif chart["type"] == "image":
                         chart_html = f"<img src='{chart['url']}' style='max-width:100%;border-radius:8px;'>"
                     elif chart["type"] == "link":
-                        chart_html = f"<a href='{chart['url']}' target='_blank'>View Size Chart</a>"
+                        chart_html = (
+                            f"<a href='{chart['url']}' target='_blank' "
+                            "style='color:#007bff;text-decoration:underline;font-weight:bold;font-size:1.1em;'>"
+                            "🔗 View Size Chart</a>"
+                        )
                     else:
                         chart_html = "Sorry, we don't have a size chart for this shop yet."
                 else:
