@@ -21,7 +21,11 @@ app.include_router(shopify.router)
 # Configure CORS with more permissive settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+          "https://aman-chatbot-test.myshopify.com",
+          
+          # ...add more as needed
+      ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
