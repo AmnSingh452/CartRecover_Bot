@@ -3,7 +3,7 @@ import requests
 import os, random, string
 from datetime import datetime, timedelta
 from dependencies import session_manager
-from main import get_db_pool, get_shop_token
+from db import get_db_pool, get_shop_token
 
 router = APIRouter()
 

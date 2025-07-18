@@ -6,7 +6,7 @@ from typing import Optional
 
 # Import shared instances from the new dependencies file
 from dependencies import session_manager, agent_coordinator, guard_agent, order_agent
-from main import get_db_pool, get_shop_token
+from db import get_db_pool, get_shop_token
 from fastapi import Depends
 
 # Set up logging
