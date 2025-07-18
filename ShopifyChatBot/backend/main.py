@@ -6,6 +6,7 @@ import time
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from routes import shopify
+from routes import shopify_oauth
 # Import shared instances from the new dependencies file
 from dependencies import session_manager, agent_coordinator
 import asyncpg
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Shopify Chatbot API")
 app.include_router(shopify.router, prefix="/api")
+app.include_router(shopify_oauth.router, prefix="/api")
 
 # Configure CORS with more permissive settings
 app.add_middleware(
