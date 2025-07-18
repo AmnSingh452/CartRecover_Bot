@@ -92,64 +92,7 @@ async def get_shop_token(pool, shop_domain):
             raise HTTPException(status_code=404, detail="Shop not found")
         return row["access_token"]
 
-@app.post("/api/chat", response_model=ApiResponse)
-async def chat(request: Request, pool=Depends(get_db_pool)):
-    try:
-        data = await request.json()
-        shop_domain = data.get("shop_domain")
-        if not shop_domain:
-            raise HTTPException(status_code=400, detail="Missing shop_domain")
-        access_token = await get_shop_token(pool, shop_domain)
-
-        logger.info(f"Received chat request. Session ID: {request.session_id}")
-
-        # Use the existing session or create a new one if it doesn't exist or is invalid
-        session = session_manager.get_session(request.session_id)
-        if not session:
-            logger.warning(f"Session ID '{request.session_id}' not found or invalid. Creating a new session.")
-            session_id = session_manager.create_session()
-        else:
-            session_id = session.session_id
-
-        logger.info(f"Using session ID: {session_id}")
-        
-        # Add user message to history
-        session_manager.add_message(session_id, "user", request.message)
-        
-        # Get chat history and customer info before processing
-        history_before_processing = session_manager.get_history(session_id) or []
-        customer_info = session_manager.get_customer_info(session_id) or {}
-        
-        # Process message using AgentCoordinator with history and customer info
-        result = await agent_coordinator.process_message(
-            request.message, history_before_processing, customer_info, access_token=access_token, shop_domain=shop_domain
-        )
-        logger.info(f"Agent response: {result}")
-        
-        # Add bot response to history
-        session_manager.add_message(session_id, "assistant", result["response"], metadata={"intent": result})
-        
-        # Get updated chat history for the response
-        final_history = session_manager.get_history(session_id) or []
-        
-        # Create response data
-        response_data = ChatResponseData(
-            response=result["response"],
-            session_id=session_id,
-            intent={"intent": result.get("agent_used", "general"), "confidence": result.get("confidence", 1.0)},
-            history=final_history,
-            customer_info=customer_info
-        )
-        
-        return ApiResponse(
-            success=True,
-            message="Message processed successfully",
-            data=response_data
-        )
-        
-    except Exception as e:
-        logger.error(f"Error in chat endpoint: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+# Remove the /api/chat endpoint from this file. It is now handled in routes/chatbot.py
 
 @app.get("/api/session/{session_id}")
 async def get_session_history(session_id: str):
