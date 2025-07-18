@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Shopify Chatbot API")
-app.include_router(shopify.router)
+app.include_router(shopify.router, prefix="/api")
 
 # Configure CORS with more permissive settings
 app.add_middleware(
