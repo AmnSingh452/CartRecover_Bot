@@ -6,6 +6,8 @@ from typing import Optional
 
 # Import shared instances from the new dependencies file
 from dependencies import session_manager, agent_coordinator, guard_agent, order_agent
+from main import get_db_pool, get_shop_token
+from fastapi import Depends
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -21,6 +23,7 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
+    shop_domain: Optional[str] = None
 
 class ChatResponse(BaseModel):
     response: str
@@ -57,12 +60,17 @@ async def check_message_safety(request: SafetyCheckRequest):
         )
 
 @router.post("/chat")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, pool=Depends(get_db_pool)):
     """
     Chat endpoint that processes messages through the agent coordinator.
     """
     try:
         logger.debug(f"Received chat request: {request.message}")
+
+        shop_domain = request.shop_domain
+        if not shop_domain:
+            return error_response(message="Missing shop_domain", error="No shop_domain provided")
+        access_token = await get_shop_token(pool, shop_domain)
 
         # Use the existing session or create a new one if it doesn't exist or is invalid
         session = session_manager.get_session(request.session_id)
@@ -71,20 +79,16 @@ async def chat(request: ChatRequest):
             session_id = session_manager.create_session()
         else:
             session_id = session.session_id
-        
         logger.info(f"Using session ID: {session_id}")
 
         # First, check message safety
         safety_result = await guard_agent.check_message(request.message)
         logger.info(f"Safety check result: {safety_result}")
-        
         if not safety_result["is_safe"] or not safety_result["details"]["is_shopping_related"]:
-            # Even for unsafe messages, we should use a valid session and record the interaction
             response_text = "I apologize, but I can only assist with shopping-related queries. Please ask me about products, orders, or shopping assistance."
             session_manager.add_message(session_id, "user", request.message)
             session_manager.add_message(session_id, "assistant", response_text)
             history = session_manager.get_history(session_id) or []
-            
             return success_response(
                 data={
                     "response": response_text,
@@ -96,32 +100,28 @@ async def chat(request: ChatRequest):
                 },
                 message="Message filtered by safety check"
             )
-        
         # Add user message to history
         session_manager.add_message(session_id, "user", request.message)
-        
         # Get history and customer info to pass to the agent
         history_before_processing = session_manager.get_history(session_id) or []
         customer_info = session_manager.get_customer_info(session_id) or {}
-
         # Process the message through the agent coordinator
         agent_response = await agent_coordinator.process_message(
-            request.message, 
+            request.message,
             history=history_before_processing,
-            customer_info=customer_info
+            customer_info=customer_info,
+            access_token=access_token,
+            shop_domain=shop_domain
         )
-        
         # Add bot response to history
         session_manager.add_message(
-            session_id, 
-            "assistant", 
+            session_id,
+            "assistant",
             agent_response["response"],
             metadata={"agent": agent_response["agent_used"]}
         )
-        
         # Get final updated chat history
         final_history = session_manager.get_history(session_id) or []
-        
         # Create the response object
         response = ChatResponse(
             response=agent_response["response"],
@@ -131,16 +131,13 @@ async def chat(request: ChatRequest):
             history=final_history,
             safety_check=safety_result
         )
-        
         # Return using the success response format
         return success_response(
             data=response.dict(),
             message="Message processed successfully"
         )
-        
     except Exception as e:
         logger.error(f"Error in chat endpoint: {str(e)}", exc_info=True)
-        # It's better to use exc_info=True for full traceback in logs
         return error_response(
             message="Failed to process chat request",
             error=str(e)
