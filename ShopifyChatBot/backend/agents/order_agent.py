@@ -24,21 +24,7 @@ class OrderAgent:
     """
     
     def __init__(self):
-        from dotenv import load_dotenv
-        import os
-        load_dotenv()
-        
-        self.shopify_access_token = os.getenv('SHOPIFY_ACCESS_TOKEN')
-        self.shopify_store_url = os.getenv('SHOPIFY_STORE_URL')
-        
-        if not self.shopify_access_token or not self.shopify_store_url:
-            raise ValueError("Missing required Shopify credentials")
-        
-        self.graphql_url = f"https://{self.shopify_store_url}/admin/api/2024-01/graphql.json"
-        self.headers = {
-            'X-Shopify-Access-Token': self.shopify_access_token,
-            'Content-Type': 'application/json',
-        }
+        pass  # No need to load or check credentials here anymore
 
     def extract_order_number(self, message: str) -> Optional[str]:
         """Extract order number from user message."""
