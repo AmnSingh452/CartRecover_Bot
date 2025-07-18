@@ -45,8 +45,8 @@ async def shopify_oauth_callback(request: Request, pool=Depends(get_db_pool)):
     }
     async with httpx.AsyncClient() as client:
         resp = await client.post(token_url, json=payload)
+        print("Shopify token exchange response:", resp.status_code, resp.text)
         if resp.status_code != 200:
-            print("Shopify token exchange failed:", resp.text)
             raise HTTPException(status_code=500, detail="Failed to get access token from Shopify.")
         data = resp.json()
         access_token = data.get("access_token")
