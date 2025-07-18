@@ -25,7 +25,7 @@ class AgentCoordinator:
         self.humanizer_agent = GPTHumanizerAgent()
         self.product_info_agent = ProductInfoAgent()
         
-    async def process_message(self, message: str, history: List[Dict] = None, customer_info: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def process_message(self, message: str, history: List[Dict] = None, customer_info: Optional[Dict[str, Any]] = None, access_token: Optional[str] = None, shop_domain: Optional[str] = None) -> Dict[str, Any]:
         """
         Process an incoming message and return a response.
         
@@ -82,9 +82,9 @@ class AgentCoordinator:
                             "customer_info": customer_info
                         }
 
-                    # Fetch order details
+                    # Fetch order details using per-shop credentials
                     logger.debug(f"Fetching details for order #{order_number}")
-                    order_details = await self.order_agent.fetch_order_details(order_number)
+                    order_details = await self.order_agent.fetch_order_details(order_number, access_token, shop_domain)
                     logger.info(f"Order details fetched: {order_details}")
 
                     # Check for errors in the response
@@ -205,7 +205,7 @@ class AgentCoordinator:
                     }
 
             elif classification["intent"] == "recommendation":
-                result = await self.recommendation_agent.get_recommendations(message)
+                result = await self.recommendation_agent.get_recommendations(message, access_token, shop_domain)
 
                 # Check if recommendations were successfully fetched
                 if "recommendations" in result and result["recommendations"]:
@@ -234,11 +234,8 @@ class AgentCoordinator:
                 }
             elif classification["intent"] == "size_inquiry":
                 # Handle size inquiry intent
-                shop_domain = None
-                if customer_info and isinstance(customer_info, dict):
-                    shop_domain = customer_info.get("shop_domain")
-                if not shop_domain:
-                    shop_domain = "4ja0wp-y1.myshopify.com"  # Default for demo; replace with dynamic logic as needed
+                # Use the passed-in shop_domain and access_token for all agent calls
+                # Remove any local redefinition of shop_domain
                 chart = SIZE_CHARTS.get(shop_domain)
                 # Build the chart HTML/link
                 if chart:
@@ -273,7 +270,11 @@ class AgentCoordinator:
                 }
             elif classification["intent"] in ["product_price", "product_stock", "return_policy", "product_info"]:
                 # Process product information requests
-                product_info_result = await self.product_info_agent.process_product_info_request(message, classification["intent"])
+                # Use the passed-in shop_domain and access_token for all agent calls
+                # Remove any local redefinition of shop_domain
+                product_info_result = await self.product_info_agent.process_product_info_request(
+                    message, classification["intent"], access_token, shop_domain
+                )
                 humanized_response = await self.humanizer_agent.humanize_response({
                     "response": product_info_result["response"],
                     "agent_used": product_info_result["agent_used"],

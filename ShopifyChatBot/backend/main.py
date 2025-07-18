@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from routes.chatbot import router as chatbot_router
 import logging
@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any
 from routes import shopify
 # Import shared instances from the new dependencies file
 from dependencies import session_manager, agent_coordinator
+import asyncpg
 
 # Configure logging
 
@@ -59,6 +60,12 @@ async def add_process_time_header(request: Request, call_next):
     logger.info(f"Request to {request.url.path} took {process_time:.2f} seconds")
     return response
 
+@app.on_event("startup")
+async def startup():
+    app.state.db_pool = await asyncpg.create_pool(
+        dsn="postgresql://chatbot_db_frvi_user:4pIoXTtZyZQ7Qnq4uaI8XLfaxFLMCDwy@dpg-d1sp3kre5dus73eg9cv0-a.oregon-postgres.render.com/chatbot_db_frvi"  # <-- fill in your DB info
+    )
+
 @app.get("/")
 async def root():
     logger.info("Root endpoint called")
@@ -69,9 +76,31 @@ async def ping():
     logger.info("Ping endpoint called")
     return {"message": "pong"}
 
+# Dependency to get the DB pool
+async def get_db_pool():
+    # You should initialize this pool at app startup and reuse it
+    # For demo, we'll assume it's globally available as app.state.db_pool
+    return app.state.db_pool
+
+async def get_shop_token(pool, shop_domain):
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT access_token FROM shops WHERE shop_domain = $1",
+            shop_domain
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Shop not found")
+        return row["access_token"]
+
 @app.post("/api/chat", response_model=ApiResponse)
-async def chat(request: ChatRequest):
+async def chat(request: Request, pool=Depends(get_db_pool)):
     try:
+        data = await request.json()
+        shop_domain = data.get("shop_domain")
+        if not shop_domain:
+            raise HTTPException(status_code=400, detail="Missing shop_domain")
+        access_token = await get_shop_token(pool, shop_domain)
+
         logger.info(f"Received chat request. Session ID: {request.session_id}")
 
         # Use the existing session or create a new one if it doesn't exist or is invalid
@@ -92,7 +121,9 @@ async def chat(request: ChatRequest):
         customer_info = session_manager.get_customer_info(session_id) or {}
         
         # Process message using AgentCoordinator with history and customer info
-        result = await agent_coordinator.process_message(request.message, history_before_processing, customer_info)
+        result = await agent_coordinator.process_message(
+            request.message, history_before_processing, customer_info, access_token=access_token, shop_domain=shop_domain
+        )
         logger.info(f"Agent response: {result}")
         
         # Add bot response to history

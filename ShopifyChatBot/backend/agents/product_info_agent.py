@@ -17,21 +17,13 @@ class ProductInfoAgent:
     Handles queries related to product information like stock, price, and return policy.
     """
     def __init__(self):
-        logger.info("Initializing ProductInfoAgent")
-        self.shopify_access_token = os.getenv('SHOPIFY_ACCESS_TOKEN')
-        self.shopify_store_url = os.getenv('SHOPIFY_STORE_URL')
+        import openai
+        from dotenv import load_dotenv
+        import os
+        load_dotenv()
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
-
-        if not self.shopify_access_token or not self.shopify_store_url:
-            raise ValueError("Missing required Shopify credentials for ProductInfoAgent")
         if not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set for ProductInfoAgent.")
-
-        self.graphql_url = f"https://{self.shopify_store_url}/admin/api/2024-01/graphql.json"
-        self.headers = {
-            'X-Shopify-Access-Token': self.shopify_access_token,
-            'Content-Type': 'application/json',
-        }
         self.openai_client = openai.AsyncOpenAI(api_key=self.openai_api_key)
 
     async def _extract_product_name_with_gpt(self, message: str) -> Optional[str]:
@@ -96,10 +88,12 @@ class ProductInfoAgent:
                 product_keywords.append(name_candidate)
         return product_keywords[0] if product_keywords else None
 
-    async def fetch_product_details(self, product_query: str) -> Dict[str, Any]:
-        """
-        Fetches detailed product information from Shopify based on a query.
-        """
+    async def fetch_product_details(self, product_query: str, shopify_access_token: str, shopify_store_url: str) -> Dict[str, Any]:
+        graphql_url = f"https://{shopify_store_url}/admin/api/2024-01/graphql.json"
+        headers = {
+            'X-Shopify-Access-Token': shopify_access_token,
+            'Content-Type': 'application/json',
+        }
         query = """
         query getProductDetails($query: String!) {
             products(first: 1, query: $query) {
@@ -124,13 +118,14 @@ class ProductInfoAgent:
         variables = {
             "query": product_query
         }
-
+        import aiohttp
+        import json
+        logger = logging.getLogger(__name__)
         logger.debug(f"Shopify product details query variables: {variables}")
-
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                self.graphql_url,
-                headers=self.headers,
+                graphql_url,
+                headers=headers,
                 json={"query": query, "variables": variables}
             ) as response:
                 if response.status == 200:
@@ -142,11 +137,9 @@ class ProductInfoAgent:
                     logger.error(f"Error fetching product details: {error_text}")
                     return {"error": f"Failed to fetch product details: {error_text}"}
 
-    async def process_product_info_request(self, message: str, intent: str) -> Dict[str, Any]:
-        """
-        Processes queries related to product stock, price, or return policy.
-        """
+    async def process_product_info_request(self, message: str, intent: str, shopify_access_token: str, shopify_store_url: str) -> Dict[str, Any]:
         product_name = await self._extract_product_name(message)
+        logger = logging.getLogger(__name__)
         logger.info(f"Product name extracted for ProductInfoAgent: {product_name}")
         if not product_name:
             return {
@@ -154,9 +147,7 @@ class ProductInfoAgent:
                 "confidence": 0.5,
                 "agent_used": "product_info_agent"
             }
-
-        product_details_response = await self.fetch_product_details(product_name)
-
+        product_details_response = await self.fetch_product_details(product_name, shopify_access_token, shopify_store_url)
         if "errors" in product_details_response:
             error_message = product_details_response['errors'][0]['message'] if product_details_response['errors'] else "Unknown Shopify API error."
             logger.error(f"Shopify API error in ProductInfoAgent: {error_message}")
@@ -166,7 +157,6 @@ class ProductInfoAgent:
                 "agent_used": "product_info_agent",
                 "error": error_message
             }
-
         products = product_details_response.get("data", {}).get("products", {}).get("edges", [])
         if not products:
             return {
@@ -174,51 +164,25 @@ class ProductInfoAgent:
                 "confidence": 0.6,
                 "agent_used": "product_info_agent"
             }
-
         product = products[0]["node"]
         response_message = ""
-
         if intent == "product_price":
             price = product.get("priceRange", {}).get("minVariantPrice", {})
             amount_str = price.get("amount", "N/A")
             currency = price.get("currencyCode", "")
-            
             try:
                 amount = float(amount_str)
-                # Assuming 2 decimal places for common currencies
                 formatted_amount = f"{amount/100:.2f}" if amount_str != "N/A" else "N/A"
             except ValueError:
                 formatted_amount = "N/A"
-
-            product_title = product.get('title', 'this product').strip().replace('"', '') # Remove potential quotes
+            product_title = product.get('title', 'this product').strip().replace('"', '')
             response_message = f"The price of {product_title} is {formatted_amount} {currency}."
         elif intent == "product_stock":
             inventory = product.get("totalInventory", "N/A")
-            product_title = product.get('title', 'this product').strip().replace('"', '') # Remove potential quotes
+            product_title = product.get('title', 'this product').strip().replace('"', '')
             response_message = f"There are {inventory} units of {product_title} currently in stock."
         elif intent == "return_policy":
-            # Shopify API does not typically expose return policy per product.
-            # This would usually be a static link or general statement from your store.
             response_message = f"Our return policy generally allows returns within 30 days of purchase for most items. For detailed information, please visit our Returns & Exchanges page on our website or contact customer support."
-        else:
-            # Default info if intent is general product_info
-            price = product.get("priceRange", {}).get("minVariantPrice", {})
-            amount_str = price.get("amount", "N/A")
-            currency = price.get("currencyCode", "")
-            inventory = product.get("totalInventory", "N/A")
-
-            try:
-                amount = float(amount_str)
-                formatted_amount = f"{amount/100:.2f}" if amount_str != "N/A" else "N/A"
-            except ValueError:
-                formatted_amount = "N/A"
-
-            product_title = product.get('title', 'this product').strip().replace('"', '') # Remove potential quotes
-            response_message = (
-                f"{product_title} is priced at {formatted_amount} {currency} and we currently have {inventory} units in stock. "
-                f"For our return policy, please refer to the Returns & Exchanges section on our website."
-            )
-            
         return {
             "response": response_message,
             "confidence": 0.9,

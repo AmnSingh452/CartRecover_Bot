@@ -19,20 +19,9 @@ class RecommendationAgent:
     
     def __init__(self):
         logger.info("Initializing RecommendationAgent")
-        self.shopify_access_token = os.getenv('SHOPIFY_ACCESS_TOKEN')
-        self.shopify_store_url = os.getenv('SHOPIFY_STORE_URL')
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        
-        if not self.shopify_access_token or not self.shopify_store_url:
-            raise ValueError("Missing required Shopify credentials for RecommendationAgent")
         if not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set for RecommendationAgent.")
-
-        self.graphql_url = f"https://{self.shopify_store_url}/admin/api/2024-01/graphql.json"
-        self.headers = {
-            'X-Shopify-Access-Token': self.shopify_access_token,
-            'Content-Type': 'application/json',
-        }
         self.openai_client = openai.AsyncOpenAI(api_key=self.openai_api_key)
 
     async def _extract_keywords_with_gpt(self, message: str) -> Optional[str]:
@@ -73,11 +62,16 @@ class RecommendationAgent:
             logger.error(f"Error extracting keywords with GPT: {e}", exc_info=True)
             return None # Fallback to no specific query
 
-    async def fetch_products(self, query: Optional[str] = None) -> Dict[str, Any]:
+    async def fetch_products(self, shopify_access_token: str, shopify_store_url: str, query: Optional[str] = None) -> Dict[str, Any]:
         """
         Fetch product details from Shopify using GraphQL.
         If a query string is provided, it will filter products.
         """
+        graphql_url = f"https://{shopify_store_url}/admin/api/2024-01/graphql.json"
+        headers = {
+            'X-Shopify-Access-Token': shopify_access_token,
+            'Content-Type': 'application/json',
+        }
         graphql_query = """
         query getProducts($query: String) {
             products(first: 5, query: $query) {
@@ -105,15 +99,13 @@ class RecommendationAgent:
             }
         }
         """
-        
         variables = {}
         if query:
             variables["query"] = query
-
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                self.graphql_url,
-                headers=self.headers,
+                graphql_url,
+                headers=headers,
                 json={"query": graphql_query, "variables": variables}
             ) as response:
                 if response.status == 200:
@@ -125,7 +117,7 @@ class RecommendationAgent:
                     logger.error(f"Error fetching products: {error_text}")
                     return {"error": f"Failed to fetch products: {error_text}"}
 
-    async def get_recommendations(self, message: str) -> Dict[str, Any]:
+    async def get_recommendations(self, message: str, shopify_access_token: str, shopify_store_url: str) -> Dict[str, Any]:
         """
         Generate product recommendations based on the message by fetching from Shopify.
         """
@@ -135,7 +127,7 @@ class RecommendationAgent:
         search_query = await self._extract_keywords_with_gpt(message)
         logger.info(f"Extracted search query for Shopify: {search_query}")
 
-        shopify_response = await self.fetch_products(query=search_query)
+        shopify_response = await self.fetch_products(shopify_access_token, shopify_store_url, query=search_query)
         
         if "errors" in shopify_response:
             error_message = shopify_response['errors'][0]['message'] if shopify_response['errors'] else "Unknown Shopify API error."

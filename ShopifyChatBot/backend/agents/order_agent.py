@@ -24,6 +24,10 @@ class OrderAgent:
     """
     
     def __init__(self):
+        from dotenv import load_dotenv
+        import os
+        load_dotenv()
+        
         self.shopify_access_token = os.getenv('SHOPIFY_ACCESS_TOKEN')
         self.shopify_store_url = os.getenv('SHOPIFY_STORE_URL')
         
@@ -44,8 +48,13 @@ class OrderAgent:
         match = re.search(pattern, message)
         return match.group(1) if match else None
 
-    async def fetch_order_details(self, order_number: str) -> Dict[str, Any]:
+    async def fetch_order_details(self, order_number: str, shopify_access_token: str, shopify_store_url: str) -> Dict[str, Any]:
         """Fetch order details from Shopify using GraphQL."""
+        graphql_url = f"https://{shopify_store_url}/admin/api/2024-01/graphql.json"
+        headers = {
+            'X-Shopify-Access-Token': shopify_access_token,
+            'Content-Type': 'application/json',
+        }
         query = """
         query getOrder($query: String!) {
             orders(first: 1, query: $query) {
@@ -94,8 +103,8 @@ class OrderAgent:
         
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                self.graphql_url,
-                headers=self.headers,
+                graphql_url,
+                headers=headers,
                 json={"query": query, "variables": variables}
             ) as response:
                 if response.status == 200:
@@ -107,7 +116,7 @@ class OrderAgent:
                     logger.error(f"Error fetching order: {error_text}")
                     return {"error": f"Failed to fetch order: {error_text}"}
 
-    async def process_order_request(self, message: str) -> Dict[str, Any]:
+    async def process_order_request(self, message: str, shopify_access_token: str, shopify_store_url: str) -> Dict[str, Any]:
         """
         Process an order-related request.
         
@@ -125,7 +134,7 @@ class OrderAgent:
                     "message": "Could not find an order number in your message. Please provide an order number."
                 }
             
-            order_details = await self.fetch_order_details(order_number)
+            order_details = await self.fetch_order_details(order_number, shopify_access_token, shopify_store_url)
             
             # Check if we got any errors in the response
             if "errors" in order_details:
@@ -148,6 +157,7 @@ class OrderAgent:
                 "details": orders[0]["node"]
             }
         except Exception as e:
+            logger = logging.getLogger(__name__)
             logger.error(f"Error processing order request: {str(e)}")
             return {
                 "success": False,

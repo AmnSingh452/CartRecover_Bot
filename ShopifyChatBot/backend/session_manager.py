@@ -16,6 +16,9 @@ class ChatSession:
             "email": None,
             "last_order": None
         }
+        # Discount code tracking
+        self.last_discount_code_time: Optional[datetime] = None
+        self.discount_codes: List[str] = []
         logger.info(f"Created new ChatSession with ID: {session_id}")
 
     def add_message(self, role: str, content: str, metadata: Optional[Dict] = None):
@@ -38,6 +41,17 @@ class ChatSession:
         if last_order:
             self.customer_info["last_order"] = last_order
         logger.debug(f"Updated customer info for session {self.session_id}: {self.customer_info}")
+
+    def can_generate_discount_code(self) -> bool:
+        """Allow only 1 code per hour."""
+        if self.last_discount_code_time is None:
+            return True
+        now = datetime.now()
+        return (now - self.last_discount_code_time).total_seconds() >= 3600
+
+    def record_discount_code(self, code: str):
+        self.last_discount_code_time = datetime.now()
+        self.discount_codes.append(code)
 
 class SessionManager:
     def __init__(self):
