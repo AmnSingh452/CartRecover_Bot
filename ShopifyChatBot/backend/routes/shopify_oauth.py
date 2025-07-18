@@ -46,6 +46,7 @@ async def shopify_oauth_callback(request: Request, pool=Depends(get_db_pool)):
     async with httpx.AsyncClient() as client:
         resp = await client.post(token_url, json=payload)
         if resp.status_code != 200:
+            print("Shopify token exchange failed:", resp.text)
             raise HTTPException(status_code=500, detail="Failed to get access token from Shopify.")
         data = resp.json()
         access_token = data.get("access_token")
@@ -64,4 +65,4 @@ async def shopify_oauth_callback(request: Request, pool=Depends(get_db_pool)):
         )
 
     # Redirect to a success page or your app's dashboard
-    return RedirectResponse(url="https://your-frontend-or-success-page.com/installed")  # Change as needed 
+    return RedirectResponse(url="https://aishopifyapp.onrender.com/auth/callback")  # Change as needed 
