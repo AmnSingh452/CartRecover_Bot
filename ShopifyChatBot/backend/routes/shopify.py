@@ -4,17 +4,21 @@ import os, random, string
 from datetime import datetime, timedelta
 from dependencies import session_manager
 from db import get_db_pool, get_shop_token
+from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
 @router.post("/recommendations")
 async def get_recommendations(request: Request, pool=Depends(get_db_pool)):
-    data = await request.json()
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "Invalid or missing JSON body"})
     product_ids = data.get("product_ids", [])
     customer_id = data.get("customer_id")
     shop_domain = data.get("shop_domain")
     if not shop_domain:
-        raise HTTPException(status_code=400, detail="Missing shop_domain")
+        return JSONResponse(status_code=400, content={"error": "Missing shop_domain"})
     access_token = await get_shop_token(pool, shop_domain)
     recommendations = []
 
@@ -59,7 +63,7 @@ async def get_recommendations(request: Request, pool=Depends(get_db_pool)):
         if rec["id"] not in seen:
             unique_recs.append(rec)
             seen.add(rec["id"])
-    return {"recommendations": unique_recs[:4]}
+    return JSONResponse(content={"recommendations": unique_recs[:4]})
 
 
 def generate_random_code(length=8):
@@ -67,19 +71,22 @@ def generate_random_code(length=8):
 
 @router.post("/abandoned-cart-discount")
 async def abandoned_cart_discount(request: Request, pool=Depends(get_db_pool)):
-    data = await request.json()
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "Invalid or missing JSON body"})
     session_id = data.get("session_id")
     shop_domain = data.get("shop_domain")
     if not shop_domain:
-        raise HTTPException(status_code=400, detail="Missing shop_domain")
+        return JSONResponse(status_code=400, content={"error": "Missing shop_domain"})
     access_token = await get_shop_token(pool, shop_domain)
     if not session_id:
-        raise HTTPException(status_code=400, detail="session_id is required")
+        return JSONResponse(status_code=400, content={"error": "session_id is required"})
     session = session_manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        return JSONResponse(status_code=404, content={"error": "Session not found"})
     if not session.can_generate_discount_code():
-        return {"error": "You can only generate one discount code per hour. Please try again later.", "discount_codes": session.discount_codes}
+        return JSONResponse(status_code=429, content={"error": "You can only generate one discount code per hour. Please try again later.", "discount_codes": session.discount_codes})
     discount_percentage = data.get("discount_percentage", 10)
     code = generate_random_code()
     now = datetime.utcnow().isoformat() + "Z"
@@ -105,7 +112,7 @@ async def abandoned_cart_discount(request: Request, pool=Depends(get_db_pool)):
     }
     pr_resp = requests.post(price_rule_url, json=price_rule_payload, headers=headers)
     if pr_resp.status_code != 201:
-        return {"error": pr_resp.text}
+        return JSONResponse(status_code=500, content={"error": pr_resp.text})
     price_rule_id = pr_resp.json()["price_rule"]["id"]
 
     # 2. Create discount code
@@ -113,7 +120,7 @@ async def abandoned_cart_discount(request: Request, pool=Depends(get_db_pool)):
     discount_payload = {"discount_code": {"code": code}}
     dc_resp = requests.post(discount_url, json=discount_payload, headers=headers)
     if dc_resp.status_code != 201:
-        return {"error": dc_resp.text}
+        return JSONResponse(status_code=500, content={"error": dc_resp.text})
 
     session.record_discount_code(code)
-    return {"discount_code": code, "discount_codes": session.discount_codes}
+    return JSONResponse(content={"discount_code": code, "discount_codes": session.discount_codes})
