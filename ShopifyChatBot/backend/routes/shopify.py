@@ -7,7 +7,7 @@ from db import get_db_pool, get_shop_token
 
 router = APIRouter()
 
-@router.post("/api/recommendations")
+@router.post("/recommendations")
 async def get_recommendations(request: Request, pool=Depends(get_db_pool)):
     data = await request.json()
     product_ids = data.get("product_ids", [])
@@ -65,7 +65,7 @@ async def get_recommendations(request: Request, pool=Depends(get_db_pool)):
 def generate_random_code(length=8):
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
-@router.post("/api/abandoned-cart-discount")
+@router.post("/abandoned-cart-discount")
 async def abandoned_cart_discount(request: Request, pool=Depends(get_db_pool)):
     data = await request.json()
     session_id = data.get("session_id")
