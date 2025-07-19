@@ -83,10 +83,6 @@ async def ping():
     return {"message": "pong"}
 
 # Dependency to get the DB pool
-async def get_db_pool():
-    # You should initialize this pool at app startup and reuse it
-    # For demo, we'll assume it's globally available as app.state.db_pool
-    return app.state.db_pool
 
 async def get_shop_token(pool, shop_domain):
     async with pool.acquire() as conn:
