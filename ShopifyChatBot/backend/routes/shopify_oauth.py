@@ -65,4 +65,4 @@ async def shopify_oauth_callback(request: Request, pool=Depends(get_db_pool)):
         )
 
     # Redirect to a success page or your app's dashboard
-    return RedirectResponse(url="https://aishopifyapp.onrender.com/auth/callback")  # Change as needed 
+    return RedirectResponse(url="https://cartrecover-bot.onrender.com/api/shopify/callback")  # Change as needed 
