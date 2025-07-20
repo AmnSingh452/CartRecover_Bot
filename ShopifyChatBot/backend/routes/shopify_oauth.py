@@ -11,7 +11,7 @@ router = APIRouter()
 
 SHOPIFY_API_KEY = os.getenv("SHOPIFY_API_KEY")
 SHOPIFY_API_SECRET = os.getenv("SHOPIFY_API_SECRET")
-SHOPIFY_SCOPES = os.getenv("SHOPIFY_SCOPES", "read_products")
+SHOPIFY_SCOPES = os.getenv("SHOPIFY_SCOPES","read_products")
 SHOPIFY_REDIRECT_URI = os.getenv("SHOPIFY_REDIRECT_URI")
 
 # 1. Start OAuth: Redirect merchant to Shopify's install page
@@ -76,4 +76,4 @@ async def shopify_oauth_callback(request: Request, pool=Depends(get_db_pool)):
 
     # Redirect to your app's main page
     logger.info("Redirecting to app main page")
-    return RedirectResponse(url="  https://aishopifyapp.onrender.com/api/shopify/callback") 
+    return RedirectResponse(url="https://aishopifyapp.onrender.com/api/shopify/callback")
