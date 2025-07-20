@@ -11,7 +11,7 @@ router = APIRouter()
 
 SHOPIFY_API_KEY = os.getenv("SHOPIFY_API_KEY")
 SHOPIFY_API_SECRET = os.getenv("SHOPIFY_API_SECRET")
-SHOPIFY_SCOPES = os.getenv("SHOPIFY_SCOPES","")
+SHOPIFY_SCOPES = os.getenv("SHOPIFY_SCOPES","write_products","read_products","read_orders","read_discounts","write_discounts","read_product_listings","read_fulfillments")
 SHOPIFY_REDIRECT_URI = os.getenv("SHOPIFY_REDIRECT_URI")
 
 # 1. Start OAuth: Redirect merchant to Shopify's install page
