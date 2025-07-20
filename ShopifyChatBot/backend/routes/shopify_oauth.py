@@ -76,4 +76,4 @@ async def shopify_oauth_callback(request: Request, pool=Depends(get_db_pool)):
 
     # Redirect to your app's main page
     logger.info("Redirecting to app main page")
-    return RedirectResponse(url="https://aishopifyapp.onrender.com")
+    return RedirectResponse(url="  https://cartrecover-bot.onrender.com")
