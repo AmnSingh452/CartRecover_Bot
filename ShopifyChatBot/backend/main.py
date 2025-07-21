@@ -6,10 +6,12 @@ import time
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from routes import shopify
-from routes import shopify_oauth
+# Removed: from routes import shopify_oauth
+
 # Import shared instances from the new dependencies file
 from dependencies import session_manager, agent_coordinator
 import asyncpg
+import os
 
 # Configure logging
 
@@ -18,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Shopify Chatbot API")
 app.include_router(shopify.router, prefix="/api")
-app.include_router(shopify_oauth.router, prefix="/api")
+# Removed: app.include_router(shopify_oauth.router, prefix="/api")
 
 # Configure CORS with more permissive settings
 app.add_middleware(
@@ -69,7 +71,7 @@ async def add_process_time_header(request: Request, call_next):
 @app.on_event("startup")
 async def startup():
     app.state.db_pool = await asyncpg.create_pool(
-        dsn="postgresql://chatbot_db_frvi_user:4pIoXTtZyZQ7Qnq4uaI8XLfaxFLMCDwy@dpg-d1sp3kre5dus73eg9cv0-a.oregon-postgres.render.com/chatbot_db_frvi"  # <-- fill in your DB info
+        dsn=os.getenv("DATABASE_URL")
     )
 
 @app.get("/")
