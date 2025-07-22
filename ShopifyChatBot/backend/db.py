@@ -10,7 +10,7 @@ async def get_db_pool():
 async def get_shop_token(pool, shop_domain):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            'SELECT accessToken FROM "Shop" WHERE shop = $1',
+            'SELECT "accessToken" FROM "Shop" WHERE "shopDomain" = $1',
             shop_domain
         )
         if not row:
