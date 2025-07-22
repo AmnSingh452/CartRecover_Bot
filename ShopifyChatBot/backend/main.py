@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from routes import shopify
 from routes import shopify_oauth
+from fastapi.responses import HTMLResponse
 
 # Import shared instances from the new dependencies file
 from dependencies import session_manager, agent_coordinator
@@ -136,3 +137,16 @@ async def update_customer_info(update: CustomerInfoUpdate):
     except Exception as e:
         logger.error(f"Error updating customer info: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/success", response_class=HTMLResponse)
+async def install_success(shop: str = ""):
+    return f"""
+    <html>
+      <head><title>App Installed</title></head>
+      <body style=\"font-family:sans-serif;text-align:center;padding:40px;\">
+        <h1>✅ App Installed Successfully!</h1>
+        <p>Thank you for installing the Shopify Chatbot app{f' for <b>{shop}</b>' if shop else ''}.</p>
+        <p>You can now close this window and return to your Shopify admin.</p>
+      </body>
+    </html>
+    """
