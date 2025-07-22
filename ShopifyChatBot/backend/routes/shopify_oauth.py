@@ -4,7 +4,7 @@ import os
 import urllib.parse
 import httpx
 from starlette.responses import JSONResponse
-from backend.db import get_db_pool
+from db import get_db_pool
 
 router = APIRouter()
 
