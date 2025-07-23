@@ -88,7 +88,7 @@ async def ping():
 async def get_shop_token(pool, shop_domain):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT access_token FROM shops WHERE shop_domain = $1",
+            'SELECT "accessToken" FROM "Session" WHERE "shop" = $1',
             shop_domain
         )
         if not row:
