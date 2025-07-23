@@ -15,4 +15,8 @@ async def get_shop_token(pool, shop_domain):
         )
         if not row:
             raise HTTPException(status_code=404, detail="Shop not found")
-        return row["accessToken"] 
+        access_token = row["accessToken"]
+        print("Using access token:", access_token)
+        return row["accessToken"]
+
+    
