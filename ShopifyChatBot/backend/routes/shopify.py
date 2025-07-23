@@ -24,16 +24,18 @@ async def get_recommendations(request: Request, pool=Depends(get_db_pool)):
 
     # 1. Cart-based recommendations
     for pid in product_ids:
-        url = f"https://{shop_domain}/recommendations/products.json?product_id={pid}&limit=4"
+        url =f"https://{shop_domain}/admin/api/2023-07/products/{pid}.json"
         headers = {"X-Shopify-Access-Token": access_token}
         resp = requests.get(url, headers=headers)
         if resp.status_code == 200:
             try:
-                recs = resp.json().get("products", [])
+                product = resp.json().get("product")
             except Exception as e:
                 print("JSON decode error (cart-based):", e, resp.text)
-                recs = []
-            recommendations.extend(recs)
+                product=None
+
+            if product:
+                recommendations.append(product)
 
     # 2. Customer history-based recommendations
     if customer_id:
@@ -51,17 +53,18 @@ async def get_recommendations(request: Request, pool=Depends(get_db_pool)):
                 for item in order.get("line_items", []):
                     purchased_product_ids.add(item["product_id"])
             for pid in purchased_product_ids:
-                url = f"https://{shop_domain}/recommendations/products.json?product_id={pid}&limit=2"
+                url = f"https://{shop_domain}/admin/api/2023-07/products/{pid}.json"
                 headers = {"X-Shopify-Access-Token": access_token}
 
                 rec_resp = requests.get(url,headers=headers)
                 if rec_resp.status_code == 200:
                     try:
-                        recs = rec_resp.json().get("products", [])
+                        product = rec_resp.json().get("product")
                     except Exception as e:
                         print("JSON decode error (history-based):", e, rec_resp.text)
-                        recs = []
-                    recommendations.extend(recs)
+                        product=None
+                    if product:
+                        recommendations.append(product)
 
 
     # 3. Fallback: Popular products
