@@ -26,7 +26,7 @@ async def get_recommendations(request: Request, pool=Depends(get_db_pool)):
     for pid in product_ids:
         url = f"https://{shop_domain}/recommendations/products.json?product_id={pid}&limit=4"
         headers = {"X-Shopify-Access-Token": access_token}
-        resp = requests.get(url)
+        resp = requests.get(url, headers=headers)
         if resp.status_code == 200:
             try:
                 recs = resp.json().get("products", [])
