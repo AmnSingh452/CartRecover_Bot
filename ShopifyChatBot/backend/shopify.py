@@ -29,11 +29,13 @@ async def get_recommendations(request: Request, pool=Depends(get_db_pool)):
         resp = requests.get(url, headers=headers)
         if resp.status_code == 200:
             try:
-                recs = resp.json().get("products", [])
+                recs = resp.json().get("product")
             except Exception as e:
                 print("JSON decode error (cart-based):", e, resp.text)
-                recs = []
-            recommendations.extend(recs)
+                product=None
+
+            if product:
+                recommendations.append(product)
 
     # 2. Customer history-based recommendations
     if customer_id:
@@ -57,11 +59,12 @@ async def get_recommendations(request: Request, pool=Depends(get_db_pool)):
                 rec_resp = requests.get(url,headers=headers)
                 if rec_resp.status_code == 200:
                     try:
-                        recs = rec_resp.json().get("products", [])
+                        recs = rec_resp.json().get("product")
                     except Exception as e:
                         print("JSON decode error (history-based):", e, rec_resp.text)
-                        recs = []
-                    recommendations.extend(recs)
+                        product=None
+                    if product:
+                        recommendations.append(product)
 
 
     # 3. Fallback: Popular products
