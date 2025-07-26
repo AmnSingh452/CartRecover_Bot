@@ -7,16 +7,36 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from routes import shopify
 from fastapi.responses import HTMLResponse
-
+from prisma import Prisma
 # Import shared instances from the new dependencies file
 from dependencies import session_manager, agent_coordinator
 import asyncpg
 import os
+from contextlib import asynccontextmanager
+
 
 # Configure logging
 
+db = Prisma()
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    app.state.db_pool = await asyncpg.create_pool(dsn=os.getenv("DATABASE_URL"))
+    logger.info("Database pool initialized")
+    yield
+    # Shutdown
+    await app.state.db_pool.close()
+    logger.info("Database pool closed")
+
+# ----------------------------
+# FastAPI App Initialization
+# ----------------------------
+app = FastAPI(title="Shopify Chatbot API", lifespan=lifespan)
+
 
 app = FastAPI(title="Shopify Chatbot API")
 app.include_router(shopify.router, prefix="/api")
@@ -67,11 +87,6 @@ async def add_process_time_header(request: Request, call_next):
     logger.info(f"Request to {request.url.path} took {process_time:.2f} seconds")
     return response
 
-@app.on_event("startup")
-async def startup():
-    app.state.db_pool = await asyncpg.create_pool(
-        dsn=os.getenv("DATABASE_URL")
-    )
 
 @app.get("/")
 async def root():
