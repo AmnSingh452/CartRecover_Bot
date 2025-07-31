@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from routes import shopify
 from fastapi.responses import HTMLResponse
-from prisma import Prisma
+# from prisma import Prisma
 # Import shared instances from the new dependencies file
 from dependencies import session_manager, agent_coordinator
 import asyncpg
@@ -17,20 +17,20 @@ from contextlib import asynccontextmanager
 
 # Configure logging
 
-db = Prisma()
+# db = Prisma()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Async context manager for connecting/disconnecting Prisma
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
-    app.state.db_pool = await asyncpg.create_pool(dsn=os.getenv("DATABASE_URL"))
-    logger.info("Database pool initialized")
-    yield
-    # Shutdown
-    await app.state.db_pool.close()
-    logger.info("Database pool closed")
+async def lifespan(app):
+        logger.info("Connecting to the database...")
+        app.state.db_pool = await asyncpg.create_pool(os.getenv("DATABASE_URL"))
+    
+        yield
+        logger.info("Disconnecting from the database...")
+        await app.state.db_pool.close()
 
 # ----------------------------
 # FastAPI App Initialization
@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Shopify Chatbot API", lifespan=lifespan)
 
 
-app = FastAPI(title="Shopify Chatbot API")
+# app = FastAPI(title="Shopify Chatbot API")
 app.include_router(shopify.router, prefix="/api")
 
 # Configure CORS with more permissive settings
@@ -108,7 +108,7 @@ async def get_shop_token(pool, shop_domain):
         )
         if not row:
             raise HTTPException(status_code=404, detail="Shop not found")
-        return row["access_token"]
+        return row["accessToken"]
 
 # Remove the /api/chat endpoint from this file. It is now handled in routes/chatbot.py
 
