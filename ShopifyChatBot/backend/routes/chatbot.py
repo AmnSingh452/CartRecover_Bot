@@ -6,7 +6,7 @@ from typing import Optional
 
 # Import shared instances from the new dependencies file
 from dependencies import session_manager, agent_coordinator, guard_agent, order_agent
-from db import get_db_pool, get_shop_token
+from db import get_db_pool, get_shop_token,get_shop_domain
 from fastapi import Depends
 
 # Set up logging
@@ -67,16 +67,23 @@ async def chat(request: ChatRequest, pool=Depends(get_db_pool)):
     try:
         logger.debug(f"Received chat request: {request.message}")
 
+        # Multi-tenant shop_domain detection
         shop_domain = request.shop_domain
+        session = session_manager.get_session(request.session_id)
+        if not shop_domain and session and hasattr(session, "shop_domain"):
+            shop_domain = session.shop_domain
+        # Optionally, get from headers (for embedded apps)
+        # if not shop_domain and hasattr(request, "headers"):
+        #     shop_domain = request.headers.get("X-Shop-Domain")
         if not shop_domain:
-            return error_response(message="Missing shop_domain", error="No shop_domain provided")
+            logger.error("No shop_domain provided or found in session/headers.")
+            return error_response(message="Missing shop_domain", error="No shop_domain provided or found in session/headers")
         access_token = await get_shop_token(pool, shop_domain)
 
         # Use the existing session or create a new one if it doesn't exist or is invalid
-        session = session_manager.get_session(request.session_id)
         if not session:
             logger.warning(f"Session ID '{request.session_id}' not found or invalid. Creating a new session.")
-            session_id = session_manager.create_session()
+            session_id = session_manager.create_session(shop_domain=shop_domain)
         else:
             session_id = session.session_id
         logger.info(f"Using session ID: {session_id}")
