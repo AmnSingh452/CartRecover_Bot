@@ -14,6 +14,10 @@ import asyncpg
 import os
 from contextlib import asynccontextmanager
 
+from fastapi import Query
+from db import get_db_pool, get_shop_token
+
+
 
 # Configure logging
 
@@ -37,6 +41,10 @@ async def lifespan(app):
 # ----------------------------
 app = FastAPI(title="Shopify Chatbot API", lifespan=lifespan)
 
+@app.get("/debug/access-token")
+async def debug_access_token(shop_domain: str = Query(...), pool=Depends(get_db_pool)):
+    token = await get_shop_token(pool, shop_domain)
+    return {"shop_domain": shop_domain, "access_token": token}
 
 # app = FastAPI(title="Shopify Chatbot API")
 app.include_router(shopify.router, prefix="/api")
@@ -44,11 +52,7 @@ app.include_router(shopify.router, prefix="/api")
 # Configure CORS with more permissive settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-          "https://aman-chatbot-test.myshopify.com",
-          
-          # ...add more as needed
-      ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
