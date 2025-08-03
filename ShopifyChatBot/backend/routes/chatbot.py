@@ -83,7 +83,11 @@ async def chat(request: ChatRequest, pool=Depends(get_db_pool)):
         # Use the existing session or create a new one if it doesn't exist or is invalid
         if not session:
             logger.warning(f"Session ID '{request.session_id}' not found or invalid. Creating a new session.")
-            session_id = session_manager.create_session(shop_domain=shop_domain)
+            # Try to pass shop_domain if supported, else fallback
+            try:
+                session_id = session_manager.create_session(shop_domain=shop_domain)
+            except TypeError:
+                session_id = session_manager.create_session()
         else:
             session_id = session.session_id
         logger.info(f"Using session ID: {session_id}")
