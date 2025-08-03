@@ -5,9 +5,11 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
+
 class ChatSession:
-    def __init__(self, session_id: str):
+    def __init__(self, session_id: str, shop_domain: Optional[str] = None):
         self.session_id = session_id
+        self.shop_domain = shop_domain
         self.created_at = datetime.now()
         self.messages: List[Dict] = []
         self.last_updated = datetime.now()
@@ -19,7 +21,7 @@ class ChatSession:
         # Discount code tracking
         self.last_discount_code_time: Optional[datetime] = None
         self.discount_codes: List[str] = []
-        logger.info(f"Created new ChatSession with ID: {session_id}")
+        logger.info(f"Created new ChatSession with ID: {session_id}, shop_domain: {shop_domain}")
 
     def add_message(self, role: str, content: str, metadata: Optional[Dict] = None):
         message = {
@@ -58,11 +60,11 @@ class SessionManager:
         self.sessions: Dict[str, ChatSession] = {}
         logger.info("SessionManager initialized with 0 sessions")
 
-    def create_session(self) -> str:
-        """Create a new chat session and return its ID"""
+    def create_session(self, shop_domain: Optional[str] = None) -> str:
+        """Create a new chat session and return its ID. Optionally store shop_domain."""
         session_id = str(uuid.uuid4())
-        self.sessions[session_id] = ChatSession(session_id)
-        logger.info(f"Created new session: {session_id}. Total sessions: {len(self.sessions)}")
+        self.sessions[session_id] = ChatSession(session_id, shop_domain=shop_domain)
+        logger.info(f"Created new session: {session_id} (shop_domain: {shop_domain}). Total sessions: {len(self.sessions)}")
         return session_id
 
     def get_session(self, session_id: str) -> Optional[ChatSession]:
