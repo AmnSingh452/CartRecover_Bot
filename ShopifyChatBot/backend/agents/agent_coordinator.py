@@ -1,6 +1,7 @@
 from typing import Dict, Any, List, Optional
 import logging
 import traceback
+import time
 from agents.guard_agent import GuardAgent
 from agents.input_classifier_agent import InputClassifierAgent
 from agents.recommendation_agent import RecommendationAgent
@@ -33,11 +34,14 @@ class AgentCoordinator:
             message: The user's message
             history: List of previous messages in the conversation
             customer_info: Dictionary containing customer details (name, email, etc.)
+            access_token: Shopify access token for the specific shop
+            shop_domain: The shop domain for multi-tenant support
             
         Returns:
             Dict containing the response and any additional metadata
         """
-        logger.debug(f"Processing message: {message}")
+        start_time = time.time()
+        logger.debug(f"Processing message: {message} for shop: {shop_domain}")
         
         try:
             # Step 1: Check message safety
@@ -58,10 +62,11 @@ class AgentCoordinator:
                 
             # Step 2: Classify the input
             classification = await self.classifier_agent.classify_input(message)
-            logger.info(f"Message classified as: {classification}")
+            logger.info(f"Message classified as: {classification['intent']} with confidence: {classification.get('confidence', 'N/A')}")
             
             # Step 3: Route to appropriate agent based on intent
             if classification["intent"] == "order":
+                logger.info("Routing to OrderAgent")
                 try:
                     # Extract order number first
                     logger.debug("Attempting to extract order number")
@@ -171,6 +176,8 @@ class AgentCoordinator:
                         raw_agent_response += "Is there anything specific about your order you'd like to know more about?"
 
                     logger.info(f"Successfully formatted order response for order #{order_number}")
+                    processing_time = time.time() - start_time
+                    logger.info(f"Order processing completed in {processing_time:.2f} seconds")
                     humanized_response = await self.humanizer_agent.humanize_response({
                         "response": raw_agent_response,
                         "agent_used": "order_agent",
@@ -183,7 +190,8 @@ class AgentCoordinator:
                         "confidence": classification["confidence"],
                         "agent_used": "order_agent",
                         "order_details": order,
-                        "customer_info": customer_info
+                        "customer_info": customer_info,
+                        "processing_time": processing_time
                     }
 
                 except Exception as e:
@@ -205,34 +213,70 @@ class AgentCoordinator:
                     }
 
             elif classification["intent"] == "recommendation":
-                result = await self.recommendation_agent.get_recommendations(message, access_token, shop_domain)
+                logger.info("Routing to RecommendationAgent")
+                try:
+                    result = await self.recommendation_agent.get_recommendations(message, access_token, shop_domain)
 
-                # Check if recommendations were successfully fetched
-                if "recommendations" in result and result["recommendations"]:
-                    # Format the recommendations into a string for the humanizer
-                    recommendations_list_str = "\n".join([
-                        f"- {item.get('name', 'Unknown Product')} (Price: {item.get('price', 'N/A')} {item.get('currency', '')})"
-                        for item in result["recommendations"]
-                    ])
-                    raw_humanizer_input = f"Here are some products I recommend:\n{recommendations_list_str}"
-                else:
-                    raw_humanizer_input = result.get("reason", "I couldn't find any specific recommendations at the moment. Please try again later.")
+                    # Check if recommendations were successfully fetched
+                    if "recommendations" in result and result["recommendations"]:
+                        # Format the recommendations into a string for the humanizer
+                        recommendations_list_str = "\n".join([
+                            f"- {item.get('name', 'Unknown Product')} (Price: {item.get('price', 'N/A')} {item.get('currency', '')})"
+                            for item in result["recommendations"]
+                        ])
+                        
+                        # Include search context if fuzzy matching was used
+                        context_note = ""
+                        if "search_term" in result and result["search_term"]:
+                            if result["search_term"] == "popular items":
+                                context_note = " Here are some popular items from our store:"
+                            else:
+                                context_note = f" Based on your request for '{result['search_term']}':"
+                        
+                        raw_humanizer_input = f"{result.get('reason', 'Here are some products I recommend')}{context_note}\n{recommendations_list_str}"
+                    else:
+                        raw_humanizer_input = result.get("reason", "I couldn't find any specific recommendations at the moment. Please try a different search term or browse our store.")
 
-                humanized_response = await self.humanizer_agent.humanize_response({
-                    "response": raw_humanizer_input,
-                    "agent_used": "recommendation_agent",
-                    "recommendations": result["recommendations"],
-                    "history": history,
-                    "customer_info": customer_info
-                })
-                return {
-                    "response": humanized_response,
-                    "confidence": classification["confidence"],
-                    "agent_used": "recommendation_agent",
-                    "recommendations": result["recommendations"],
-                    "customer_info": customer_info
-                }
+                    humanized_response = await self.humanizer_agent.humanize_response({
+                        "response": raw_humanizer_input,
+                        "agent_used": "recommendation_agent",
+                        "recommendations": result.get("recommendations", []),
+                        "history": history,
+                        "customer_info": customer_info
+                    })
+                    
+                    response_data = {
+                        "response": humanized_response,
+                        "confidence": classification["confidence"],
+                        "agent_used": "recommendation_agent",
+                        "recommendations": result.get("recommendations", []),
+                        "customer_info": customer_info
+                    }
+                    
+                    # Include search term if fuzzy matching was used
+                    if "search_term" in result:
+                        response_data["search_term_used"] = result["search_term"]
+                    
+                    return response_data
+                    
+                except Exception as e:
+                    error_details = traceback.format_exc()
+                    logger.error(f"Error in recommendation processing: {str(e)}\n{error_details}")
+                    humanized_response = await self.humanizer_agent.humanize_response({
+                        "response": f"I apologize, but I encountered an error while getting recommendations: {str(e)}",
+                        "agent_used": "recommendation_agent",
+                        "history": history,
+                        "customer_info": customer_info
+                    })
+                    return {
+                        "response": humanized_response,
+                        "confidence": 0.0,
+                        "agent_used": "recommendation_agent",
+                        "error": str(e),
+                        "customer_info": customer_info
+                    }
             elif classification["intent"] == "size_inquiry":
+                logger.info("Routing to SizeChartAgent")
                 # Handle size inquiry intent
                 # Use the passed-in shop_domain and access_token for all agent calls
                 # Remove any local redefinition of shop_domain
@@ -269,27 +313,58 @@ class AgentCoordinator:
                     "customer_info": customer_info
                 }
             elif classification["intent"] in ["product_price", "product_stock", "return_policy", "product_info"]:
+                logger.info(f"Routing to ProductInfoAgent for intent: {classification['intent']}")
                 # Process product information requests
-                # Use the passed-in shop_domain and access_token for all agent calls
-                # Remove any local redefinition of shop_domain
-                product_info_result = await self.product_info_agent.process_product_info_request(
-                    message, classification["intent"], access_token, shop_domain
-                )
-                humanized_response = await self.humanizer_agent.humanize_response({
-                    "response": product_info_result["response"],
-                    "agent_used": product_info_result["agent_used"],
-                    "product_details": product_info_result.get("product_details"),
-                    "history": history,
-                    "customer_info": customer_info
-                })
-                return {
-                    "response": humanized_response,
-                    "confidence": product_info_result["confidence"],
-                    "agent_used": product_info_result["agent_used"],
-                    "product_details": product_info_result.get("product_details"),
-                    "customer_info": customer_info
-                }
+                try:
+                    product_info_result = await self.product_info_agent.process_product_info_request(
+                        message, classification["intent"], access_token, shop_domain
+                    )
+                    
+                    # Enhanced error handling for product info
+                    if product_info_result.get("error"):
+                        logger.warning(f"Product info agent returned error: {product_info_result['error']}")
+                    
+                    humanized_response = await self.humanizer_agent.humanize_response({
+                        "response": product_info_result["response"],
+                        "agent_used": product_info_result["agent_used"],
+                        "product_details": product_info_result.get("product_details"),
+                        "history": history,
+                        "customer_info": customer_info
+                    })
+                    
+                    response_data = {
+                        "response": humanized_response,
+                        "confidence": product_info_result["confidence"],
+                        "agent_used": product_info_result["agent_used"],
+                        "customer_info": customer_info
+                    }
+                    
+                    # Include additional data if available
+                    if "product_details" in product_info_result:
+                        response_data["product_details"] = product_info_result["product_details"]
+                    if "search_term_used" in product_info_result:
+                        response_data["search_term_used"] = product_info_result["search_term_used"]
+                    
+                    return response_data
+                    
+                except Exception as e:
+                    error_details = traceback.format_exc()
+                    logger.error(f"Error in product info processing: {str(e)}\n{error_details}")
+                    humanized_response = await self.humanizer_agent.humanize_response({
+                        "response": f"I apologize, but I encountered an error while looking up product information: {str(e)}",
+                        "agent_used": "product_info_agent",
+                        "history": history,
+                        "customer_info": customer_info
+                    })
+                    return {
+                        "response": humanized_response,
+                        "confidence": 0.0,
+                        "agent_used": "product_info_agent",
+                        "error": str(e),
+                        "customer_info": customer_info
+                    }
             else:
+                logger.info(f"Using general/fallback response for intent: {classification.get('intent', 'unknown')}")
                 # Default response for general queries
                 raw_agent_response = f"I'm your shopping assistant. You said: {message}"
                 humanized_response = await self.humanizer_agent.humanize_response({
@@ -307,11 +382,19 @@ class AgentCoordinator:
         except Exception as e:
             error_details = traceback.format_exc()
             logger.error(f"Unhandled error in AgentCoordinator.process_message: {str(e)}\n{error_details}")
+            processing_time = time.time() - start_time
+            logger.info(f"Message processing failed after {processing_time:.2f} seconds")
             return {
                 "response": "I apologize, but I encountered an unexpected error while processing your request. Please try again later.",
                 "confidence": 0.0,
                 "agent_used": "error_handler",
                 "error": str(e),
                 "error_details": error_details,
-                "customer_info": customer_info
+                "customer_info": customer_info,
+                "processing_time": processing_time
             }
+        
+        finally:
+            # Log total processing time
+            total_time = time.time() - start_time
+            logger.info(f"Total message processing time: {total_time:.2f} seconds")

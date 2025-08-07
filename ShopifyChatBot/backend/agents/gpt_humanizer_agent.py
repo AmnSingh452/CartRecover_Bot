@@ -50,8 +50,15 @@ class GPTHumanizerAgent:
         if history:
             history_context = "\nPrevious conversation:\n"
             for msg in history[-3:]:  # Include last 3 messages for context
-                role = "User" if msg["role"] == "user" else "Assistant"
-                history_context += f"{role}: {msg['content']}\n"
+                # Handle both formats: old format {"user": "...", "assistant": "..."} 
+                # and new format {"role": "user", "content": "..."}
+                if "role" in msg and "content" in msg:
+                    role = "User" if msg["role"] == "user" else "Assistant"
+                    history_context += f"{role}: {msg['content']}\n"
+                elif "user" in msg:
+                    history_context += f"User: {msg['user']}\n"
+                    if "assistant" in msg:
+                        history_context += f"Assistant: {msg['assistant']}\n"
 
         customer_name = customer_info.get("name")
         

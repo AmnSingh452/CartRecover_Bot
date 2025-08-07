@@ -54,18 +54,36 @@ class InputClassifierAgent:
             {"role": "assistant", "content": "{\"intent\": \"recommendation\", \"confidence\": 0.75, \"explanation\": \"User is asking for general product suggestions.\"}"},
             {"role": "user", "content": "Do you have any cool gadgets?"},
             {"role": "assistant", "content": "{\"intent\": \"recommendation\", \"confidence\": 0.88, \"explanation\": \"User is looking for specific product types to be recommended.\"}"},
+            {"role": "user", "content": "Show me some jeans"},
+            {"role": "assistant", "content": "{\"intent\": \"recommendation\", \"confidence\": 0.9, \"explanation\": \"User wants to see product recommendations for jeans.\"}"},
+            {"role": "user", "content": "Show me some jens"},
+            {"role": "assistant", "content": "{\"intent\": \"recommendation\", \"confidence\": 0.85, \"explanation\": \"User likely meant 'jeans' and wants product recommendations.\"}"},
+            {"role": "user", "content": "I need nike shoos"},
+            {"role": "assistant", "content": "{\"intent\": \"recommendation\", \"confidence\": 0.85, \"explanation\": \"User likely meant 'shoes' and wants Nike product recommendations.\"}"},
+            {"role": "user", "content": "Looking for tshrt"},
+            {"role": "assistant", "content": "{\"intent\": \"recommendation\", \"confidence\": 0.85, \"explanation\": \"User likely meant 't-shirt' and is looking for recommendations.\"}"},
+            {"role": "user", "content": "Any good jacets?"},
+            {"role": "assistant", "content": "{\"intent\": \"recommendation\", \"confidence\": 0.85, \"explanation\": \"User likely meant 'jackets' and wants recommendations.\"}"},
             
             # Product Price intent examples
             {"role": "user", "content": "How much is the Levi's 501 jeans?"},
             {"role": "assistant", "content": "{\"intent\": \"product_price\", \"confidence\": 0.95, \"explanation\": \"User is inquiring about the price of a specific product.\"}"},
             {"role": "user", "content": "What's the cost of the graphic t-shirt?"},
             {"role": "assistant", "content": "{\"intent\": \"product_price\", \"confidence\": 0.9, \"explanation\": \"User wants to know the price.\"}"},
+            {"role": "user", "content": "What's the price of jens?"},
+            {"role": "assistant", "content": "{\"intent\": \"product_price\", \"confidence\": 0.85, \"explanation\": \"User likely meant 'jeans' and wants to know the price.\"}"},
+            {"role": "user", "content": "How much do nike shoos cost?"},
+            {"role": "assistant", "content": "{\"intent\": \"product_price\", \"confidence\": 0.85, \"explanation\": \"User likely meant 'shoes' and wants Nike pricing information.\"}"},
 
             # Product Stock intent examples
             {"role": "user", "content": "Is the iPhone 15 in stock?"},
             {"role": "assistant", "content": "{\"intent\": \"product_stock\", \"confidence\": 0.95, \"explanation\": \"User is inquiring about product availability.\"}"},
             {"role": "user", "content": "Do you have size M in the black dress?"},
             {"role": "assistant", "content": "{\"intent\": \"product_stock\", \"confidence\": 0.9, \"explanation\": \"User is asking about stock for a specific variant.\"}"},
+            {"role": "user", "content": "Are jens in stock?"},
+            {"role": "assistant", "content": "{\"intent\": \"product_stock\", \"confidence\": 0.85, \"explanation\": \"User likely meant 'jeans' and wants to know about availability.\"}"},
+            {"role": "user", "content": "Do you have tshrt available?"},
+            {"role": "assistant", "content": "{\"intent\": \"product_stock\", \"confidence\": 0.85, \"explanation\": \"User likely meant 't-shirt' and wants to know about stock.\"}"},
 
             # Size Inquiry intent examples
             {"role": "user", "content": "What size should I get?"},
