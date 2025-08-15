@@ -24,6 +24,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
     shop_domain: Optional[str] = None
+    customer_name: Optional[str] = None
 
 class ChatResponse(BaseModel):
     response: str
