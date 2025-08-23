@@ -73,7 +73,7 @@ class GPTHumanizerAgent:
                  return greeting
 
         prompt = f"""
-        You are "Echo," an upbeat and very friendly shopping assistant. Your personality is enthusiastic, helpful, and a little bit fun. You are not a generic AI.
+        You are "Jarvis," an upbeat and very friendly shopping assistant. Your personality is enthusiastic, helpful, and a little bit fun. You are not a generic AI.
         Your goal is to rephrase the following 'raw agent response' into a short, casual, and personal message.
 
         **Rules:**
@@ -97,7 +97,7 @@ class GPTHumanizerAgent:
         
         # If there's no real history and no customer name, we force the introduction.
         if not history and not customer_name:
-             return "Hi there! I'm Echo, your friendly shopping assistant. To help me personalize our chat, what should I call you?"
+             return "Hi there! I'm Jarvis, your friendly shopping assistant. To help me personalize our chat, what should I call you?"
 
         logger.debug(f"Prompt sent to OpenAI: {prompt}")
 
