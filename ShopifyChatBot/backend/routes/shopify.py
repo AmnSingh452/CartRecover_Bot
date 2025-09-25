@@ -669,3 +669,16 @@ async def abandoned_cart_discount_options():
             "Access-Control-Max-Age": "3600"
         }
     )
+# Alternative endpoint paths for compatibility with existing clients
+@router.post("/shopify/abandoned-cart-discount")
+async def shopify_abandoned_cart_discount(request: Request, pool=Depends(get_db_pool)):
+    """
+    Alternative endpoint path for /api/shopify/abandoned-cart-discount 
+    Redirects to the main abandoned_cart_discount function for compatibility
+    """
+    return await abandoned_cart_discount(request, pool)
+
+@router.options("/shopify/abandoned-cart-discount") 
+async def shopify_abandoned_cart_discount_options():
+    """Handle CORS preflight requests for /api/shopify/abandoned-cart-discount"""
+    return await abandoned_cart_discount_options()
