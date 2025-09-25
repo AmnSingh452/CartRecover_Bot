@@ -52,8 +52,8 @@ app.include_router(shopify.router, prefix="/api")
 # Configure CORS with more permissive settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://aman-chatbot-test.myshopify.com"],
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins for abandoned cart API
+    allow_credentials=False,  # Set to False when using wildcard origin
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"]
