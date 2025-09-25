@@ -322,46 +322,194 @@ def get_mock_recommendations():
     ]
 
 
-def generate_random_code(length=8):
+def generate_random_code(length=6):
+    """Generate random string for discount codes"""
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
 @router.post("/abandoned-cart-discount")
 async def abandoned_cart_discount(request: Request, pool=Depends(get_db_pool)):
+    """
+    Create abandoned cart discount codes for Shopify apps.
+    
+    Expected Request Body:
+    {
+        "session_id": "string",
+        "shop_domain": "aman-chatbot-test.myshopify.com",
+        "customer_id": "string",
+        "cart_data": {},
+        "discount_percentage": 10
+    }
+    
+    Response:
+    {
+        "discount_code": "SAVE10-ABC123",
+        "message": "Discount created successfully"
+    }
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Log the incoming request
+    logger.info(f"🛒 Abandoned cart discount request received from {request.client.host if request.client else 'unknown'}")
+    
     try:
         data = await request.json()
-    except Exception:
-        return JSONResponse(status_code=400, content={"error": "Invalid or missing JSON body"})
+        logger.info(f"📝 Request data: {data}")
+    except Exception as e:
+        logger.error(f"❌ Invalid JSON body: {e}")
+        return JSONResponse(
+            status_code=400, 
+            content={
+                "error": "Invalid or missing JSON body",
+                "details": f"Request body must be valid JSON: {str(e)}"
+            },
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+    
+    # Extract required fields
     session_id = data.get("session_id")
     shop_domain = data.get("shop_domain")
+    customer_id = data.get("customer_id")
+    cart_data = data.get("cart_data", {})
+    discount_percentage = data.get("discount_percentage", 10)
+    
+    # Validate required fields
     if not shop_domain:
-        return JSONResponse(status_code=400, content={"error": "Missing shop_domain"})
-    access_token = await get_shop_token(pool, shop_domain)
+        logger.error("❌ Missing shop_domain")
+        return JSONResponse(
+            status_code=400, 
+            content={
+                "error": "Missing shop_domain",
+                "details": "shop_domain is required in request body"
+            },
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+    
     if not session_id:
-        return JSONResponse(status_code=400, content={"error": "session_id is required"})
+        logger.error("❌ Missing session_id")
+        return JSONResponse(
+            status_code=400, 
+            content={
+                "error": "session_id is required",
+                "details": "session_id must be provided in request body"
+            },
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+    
+    # Validate discount percentage
+    if not isinstance(discount_percentage, (int, float)) or discount_percentage <= 0 or discount_percentage > 100:
+        logger.error(f"❌ Invalid discount_percentage: {discount_percentage}")
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Invalid discount_percentage",
+                "details": "discount_percentage must be a number between 1 and 100"
+            },
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+    
+    try:
+        # Get shop access token
+        access_token = await get_shop_token(pool, shop_domain)
+        logger.info(f"✅ Retrieved access token for shop: {shop_domain}")
+    except Exception as e:
+        logger.error(f"❌ Failed to get shop token: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Failed to retrieve shop access token",
+                "details": f"Could not authenticate with shop {shop_domain}: {str(e)}"
+            },
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+    
+    # Get or create session
     session = session_manager.get_session(session_id)
     if not session:
-        return JSONResponse(status_code=404, content={"error": "Session not found"})
-    if not session.can_generate_discount_code():
-        return JSONResponse(status_code=429, content={"error": "You can only generate one discount code per hour. Please try again later.", "discount_codes": session.discount_codes})
+        logger.warning(f"⚠️ Session {session_id} not found, creating new session")
+        try:
+            session_id = session_manager.create_session(shop_domain=shop_domain)
+            session = session_manager.get_session(session_id)
+            logger.info(f"✅ Created new session: {session_id}")
+        except Exception as e:
+            logger.error(f"❌ Failed to create session: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": "Failed to create session",
+                    "details": f"Could not create session for discount: {str(e)}"
+                },
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "POST, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                }
+            )
     
-    discount_percentage = data.get("discount_percentage", 10)
-    code = generate_random_code()
-    now = datetime.utcnow().isoformat() + "Z"
+    # Check rate limiting (if session management is enabled)
+    if hasattr(session, 'can_generate_discount_code') and not session.can_generate_discount_code():
+        logger.warning(f"⚠️ Rate limit exceeded for session {session_id}")
+        return JSONResponse(
+            status_code=429, 
+            content={
+                "error": "Rate limit exceeded",
+                "details": "You can only generate one discount code per hour. Please try again later.",
+                "discount_codes": getattr(session, 'discount_codes', [])
+            },
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+    
+    # Generate unique discount code with specified format
+    random_string = generate_random_code()
+    code = f"SAVE{int(discount_percentage)}-{random_string}"
+    logger.info(f"🎫 Generated discount code: {code}")
+    
+    # Set discount expiry (24 hours from now)
+    now = datetime.utcnow()
+    expires_at = (now + timedelta(hours=24)).isoformat() + "Z"
+    now_iso = now.isoformat() + "Z"
 
-    # Create discount code using GraphQL
-    graphql_url = f"https://{shop_domain}/admin/api/2023-07/graphql.json"
+    # Create discount code using Shopify GraphQL API
+    graphql_url = f"https://{shop_domain}/admin/api/2024-01/graphql.json"
     headers = {
         "X-Shopify-Access-Token": access_token,
         "Content-Type": "application/json"
     }
     
-    # GraphQL mutation to create discount code
+    logger.info(f"🔗 Creating discount via GraphQL: {graphql_url}")
+    
+    # GraphQL mutation to create discount code with 24-hour expiry
     mutation = f"""
     mutation {{
       discountCodeBasicCreate(basicCodeDiscount: {{
         title: "AbandonedCart-{code}"
         code: "{code}"
-        startsAt: "{now}"
+        startsAt: "{now_iso}"
+        endsAt: "{expires_at}"
         usageLimit: 1
         customerSelection: {{
           all: true
@@ -374,6 +522,7 @@ async def abandoned_cart_discount(request: Request, pool=Depends(get_db_pool)):
             all: true
           }}
         }}
+        appliesOncePerCustomer: true
       }}) {{
         codeDiscountNode {{
           id
@@ -387,6 +536,9 @@ async def abandoned_cart_discount(request: Request, pool=Depends(get_db_pool)):
                   }}
                 }}
               }}
+              startsAt
+              endsAt
+              usageLimit
             }}
           }}
         }}
@@ -398,23 +550,122 @@ async def abandoned_cart_discount(request: Request, pool=Depends(get_db_pool)):
     }}
     """
     
-    resp = requests.post(graphql_url, headers=headers, json={"query": mutation}, timeout=10)
-    
-    if resp.status_code != 200:
-        return JSONResponse(status_code=500, content={"error": f"GraphQL request failed: {resp.text}"})
-    
     try:
-        result = resp.json()
-        if "errors" in result:
-            return JSONResponse(status_code=500, content={"error": f"GraphQL errors: {result['errors']}"})
+        resp = requests.post(graphql_url, headers=headers, json={"query": mutation}, timeout=15)
+        logger.info(f"📡 Shopify API response status: {resp.status_code}")
         
-        user_errors = result.get("data", {}).get("discountCodeBasicCreate", {}).get("userErrors", [])
+        if resp.status_code != 200:
+            logger.error(f"❌ GraphQL request failed: {resp.status_code} - {resp.text}")
+            return JSONResponse(
+                status_code=500, 
+                content={
+                    "error": "Failed to create discount code",
+                    "details": f"Shopify API returned {resp.status_code}: {resp.text}"
+                },
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "POST, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                }
+            )
+        
+        result = resp.json()
+        logger.info(f"📋 Shopify API response: {result}")
+        
+        # Check for GraphQL errors
+        if "errors" in result:
+            logger.error(f"❌ GraphQL errors: {result['errors']}")
+            return JSONResponse(
+                status_code=500, 
+                content={
+                    "error": "GraphQL query failed",
+                    "details": f"Shopify GraphQL errors: {result['errors']}"
+                },
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "POST, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                }
+            )
+        
+        # Check for user errors (validation failures)
+        discount_data = result.get("data", {}).get("discountCodeBasicCreate", {})
+        user_errors = discount_data.get("userErrors", [])
+        
         if user_errors:
-            return JSONResponse(status_code=500, content={"error": f"Discount creation failed: {user_errors}"})
+            logger.error(f"❌ Discount creation validation failed: {user_errors}")
+            return JSONResponse(
+                status_code=400, 
+                content={
+                    "error": "Discount validation failed",
+                    "details": f"Shopify validation errors: {user_errors}"
+                },
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "POST, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                }
+            )
         
         # Successfully created discount
-        session.record_discount_code(code)
-        return JSONResponse(content={"discount_code": code, "discount_codes": session.discount_codes})
+        logger.info(f"✅ Discount code created successfully: {code}")
         
+        # Record the discount code in session (if session management is available)
+        if hasattr(session, 'record_discount_code'):
+            session.record_discount_code(code)
+            logger.info(f"📝 Recorded discount code in session")
+        
+        # Return success response in the specified format
+        return JSONResponse(
+            content={
+                "discount_code": code,
+                "message": "Discount created successfully"
+            },
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS", 
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"❌ Network error calling Shopify API: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Network error",
+                "details": f"Failed to connect to Shopify API: {str(e)}"
+            },
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": f"Error parsing discount response: {str(e)}"})
+        logger.error(f"❌ Unexpected error creating discount: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Internal server error",
+                "details": f"Unexpected error while creating discount: {str(e)}"
+            },
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+
+@router.options("/abandoned-cart-discount") 
+async def abandoned_cart_discount_options():
+    """Handle CORS preflight requests for abandoned cart discount endpoint"""
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+            "Access-Control-Max-Age": "3600"
+        }
+    )
