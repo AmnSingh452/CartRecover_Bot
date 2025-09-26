@@ -326,6 +326,103 @@ def generate_random_code(length=6):
     """Generate random string for discount codes"""
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
+async def check_existing_discount_codes(session_id: str, shop_domain: str, access_token: str):
+    """
+    Check if the session/customer has any existing active (unused) discount codes.
+    Returns the first active code found, or None if no active codes exist.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Get session to check for previously generated codes
+    session = session_manager.get_session(session_id)
+    if not session or not hasattr(session, 'discount_codes') or not session.discount_codes:
+        logger.info(f"📝 No previous discount codes found for session {session_id}")
+        return None
+    
+    # Check each previous code to see if it's still active
+    graphql_url = f"https://{shop_domain}/admin/api/2024-01/graphql.json"
+    headers = {
+        "X-Shopify-Access-Token": access_token,
+        "Content-Type": "application/json"
+    }
+    
+    logger.info(f"🔍 Checking {len(session.discount_codes)} existing codes for session {session_id}")
+    
+    for code in session.discount_codes:
+        try:
+            # Query to get discount code details and usage
+            query = f"""
+            query {{
+              codeDiscountNodes(first: 1, query: "code:{code}") {{
+                edges {{
+                  node {{
+                    id
+                    codeDiscount {{
+                      ... on DiscountCodeBasic {{
+                        title
+                        codes(first: 1) {{
+                          edges {{
+                            node {{
+                              code
+                            }}
+                          }}
+                        }}
+                        startsAt
+                        endsAt
+                        usageLimit
+                        asyncUsageCount
+                        status
+                      }}
+                    }}
+                  }}
+                }}
+              }}
+            }}
+            """
+            
+            resp = requests.post(graphql_url, headers=headers, json={"query": query}, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                
+                if "errors" in data:
+                    logger.warning(f"⚠️ GraphQL error checking code {code}: {data['errors']}")
+                    continue
+                
+                edges = data.get("data", {}).get("codeDiscountNodes", {}).get("edges", [])
+                if edges:
+                    discount_node = edges[0]["node"]
+                    discount = discount_node.get("codeDiscount", {})
+                    
+                    # Check if code is still active and unused
+                    usage_count = discount.get("asyncUsageCount", 0)
+                    usage_limit = discount.get("usageLimit", 1)
+                    status = discount.get("status", "").upper()
+                    ends_at = discount.get("endsAt")
+                    
+                    logger.info(f"📊 Code {code}: status={status}, used={usage_count}/{usage_limit}, expires={ends_at}")
+                    
+                    # Check if code is still valid and unused
+                    if (status == "ACTIVE" and 
+                        usage_count < usage_limit and 
+                        (not ends_at or ends_at > datetime.utcnow().isoformat() + "Z")):
+                        
+                        logger.info(f"✅ Found active unused code: {code}")
+                        return code
+                    else:
+                        logger.info(f"❌ Code {code} is expired/used: status={status}, used={usage_count}")
+                else:
+                    logger.info(f"❌ Code {code} not found in Shopify")
+            else:
+                logger.warning(f"⚠️ HTTP error checking code {code}: {resp.status_code}")
+                        
+        except Exception as e:
+            logger.error(f"❌ Error checking discount code {code}: {e}")
+            continue
+    
+    logger.info(f"🔍 No active unused codes found for session {session_id}")
+    return None
+
 @router.post("/abandoned-cart-discount")
 async def abandoned_cart_discount(request: Request, pool=Depends(get_db_pool)):
     """
@@ -483,10 +580,28 @@ async def abandoned_cart_discount(request: Request, pool=Depends(get_db_pool)):
             }
         )
     
-    # Generate unique discount code with specified format
+    # Check if session already has an active unused discount code
+    logger.info(f"🔍 Checking for existing active discount codes...")
+    existing_code = await check_existing_discount_codes(session_id, shop_domain, access_token)
+    
+    if existing_code:
+        logger.info(f"♻️ Returning existing active code: {existing_code}")
+        return JSONResponse(
+            content={
+                "discount_code": existing_code,
+                "message": "Discount created successfully"
+            },
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS", 
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+    
+    # No active code found, generate new unique discount code with specified format
     random_string = generate_random_code()
     code = f"SAVE{int(discount_percentage)}-{random_string}"
-    logger.info(f"🎫 Generated discount code: {code}")
+    logger.info(f"🎫 Generated new discount code: {code}")
     
     # Set discount expiry (24 hours from now)
     now = datetime.utcnow()

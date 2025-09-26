@@ -1,7 +1,26 @@
 # 🛒 Abandoned Cart Discount API Documentation
 
 ## Overview
-The `/api/abandoned-cart-discount` endpoint creates discount codes for abandoned cart recovery in Shopify stores.
+The `/api/abandoned-cart-dis## Discount Code Features
+
+### Code Format
+- Pattern: `SAVE{percentage}-{random_string}`
+- Example: `SAVE20-ABC123` (20% discount)
+- Random string: 6 characters (uppercase letters + digits)
+
+### Discount Properties
+- **Type**: Percentage discount (1-100%)
+- **Value**: As specified in request
+- **Usage Limit**: 1 per customer
+- **Duration**: 24 hours from creation
+- **Applies To**: Entire order
+- **Customer Eligibility**: All customers
+
+### Code Management (NEW)
+- **One Active Code**: Only 1 active code per customer at a time
+- **Code Reuse**: Returns existing code if still valid and unused
+- **Auto-Cleanup**: Creates new code only after previous is used/expired
+- **No Stockpiling**: Prevents customers from accumulating multiple codest creates discount codes for abandoned cart recovery in Shopify stores.
 
 ## Endpoint Details
 - **URL**: `POST /api/abandoned-cart-discount`
@@ -119,10 +138,42 @@ Access-Control-Allow-Headers: Content-Type, Authorization
 Access-Control-Max-Age: 3600
 ```
 
-## Rate Limiting
-- **Limit**: 1 discount code per session per hour
+## Rate Limiting & Code Management
+- **Limit**: 1 active discount code per session at any time
 - **Scope**: Per session (not global)
-- **Behavior**: Returns 429 status with existing codes
+- **Behavior**: Returns existing active code instead of creating new ones
+- **Code Reuse**: Returns same code until it's used or expires
+- **Protection**: Prevents customer from stockpiling multiple codes
+
+## Smart Code Management
+
+### How It Works
+```
+Customer Request → Check Existing Codes → 
+├── Has active unused code? → Return existing code
+└── No active codes? → Create new code
+```
+
+### Example Flow
+```json
+// First visit - creates new code
+POST /api/abandoned-cart-discount
+Response: {"discount_code": "SAVE15-ABC123", "message": "Discount created successfully"}
+
+// Second visit (same session) - returns same code
+POST /api/abandoned-cart-discount  
+Response: {"discount_code": "SAVE15-ABC123", "message": "Discount created successfully"}
+
+// After customer uses code or it expires - creates new code
+POST /api/abandoned-cart-discount
+Response: {"discount_code": "SAVE15-XYZ789", "message": "Discount created successfully"}
+```
+
+### Benefits
+- 🛡️ **Prevents Abuse**: No stockpiling of multiple codes
+- 💰 **Revenue Protection**: One active discount per customer
+- 🔄 **Better UX**: Consistent code across app sessions
+- 📊 **Clean Analytics**: Clear customer journey tracking
 
 ## Error Handling
 All errors include:
