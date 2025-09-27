@@ -6,6 +6,7 @@ import time
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from routes import shopify
+from routes import feedback
 from fastapi.responses import HTMLResponse
 # from prisma import Prisma
 # Import shared instances from the new dependencies file
@@ -48,6 +49,7 @@ async def debug_access_token(shop_domain: str = Query(...), pool=Depends(get_db_
 
 # app = FastAPI(title="Shopify Chatbot API")
 app.include_router(shopify.router, prefix="/api")
+app.include_router(feedback.router, prefix="/api/feedback")
 
 # Configure CORS with more permissive settings
 app.add_middleware(
