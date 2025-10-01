@@ -6,6 +6,7 @@ import time
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from routes import shopify
+from routes import feedback
 from fastapi.responses import HTMLResponse
 # from prisma import Prisma
 # Import shared instances from the new dependencies file
@@ -61,6 +62,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(chatbot_router, prefix="/api")
+app.include_router(feedback.router, prefix="/api")
 
 class ChatRequest(BaseModel):
     message: str
