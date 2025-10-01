@@ -388,8 +388,7 @@ async def check_existing_codes_by_customer(shop_domain: str, access_token: str, 
             discount_nodes = data.get("data", {}).get("discountNodes", {}).get("edges", [])
             
             # Look for unused codes created in the last 2 hours (recent enough to be from same session)
-            from datetime import timezone
-            now = datetime.utcnow().replace(tzinfo=timezone.utc)  # Make timezone-aware
+            now = datetime.utcnow()
             recent_cutoff = now - timedelta(hours=2)  
             
             for edge in discount_nodes:
@@ -402,8 +401,6 @@ async def check_existing_codes_by_customer(shop_domain: str, access_token: str, 
                 ends_at = datetime.fromisoformat(discount["endsAt"].replace("Z", "+00:00"))
                 usage_count = discount.get("asyncUsageCount", 0)
                 status = discount.get("status", "ACTIVE")
-                
-                logger.debug(f"🔍 Checking code: starts_at={starts_at}, ends_at={ends_at}, usage={usage_count}, status={status}")
                 
                 # If code is active, unused, and created recently, return it
                 if (status == "ACTIVE" and 
