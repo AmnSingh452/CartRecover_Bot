@@ -344,10 +344,10 @@ async def check_existing_codes_by_customer(shop_domain: str, access_token: str, 
         }
         
         # Query for recent discount codes created in the last 24 hours
-        # that match our abandoned cart pattern
+        # that match our abandoned cart pattern - using broader search
         query = """
         query getRecentDiscounts {
-            discountNodes(first: 20, query: "title:AbandonedCart-SAVE*") {
+            discountNodes(first: 50, query: "title:AbandonedCart*") {
                 edges {
                     node {
                         id
@@ -386,12 +386,14 @@ async def check_existing_codes_by_customer(shop_domain: str, access_token: str, 
                 return None
             
             discount_nodes = data.get("data", {}).get("discountNodes", {}).get("edges", [])
+            logger.info(f"🔍 Found {len(discount_nodes)} total discount codes to check")
             
             # Look for unused codes created in the last 2 hours (recent enough to be from same session)
             now = datetime.utcnow()
             recent_cutoff = now - timedelta(hours=2)  
+            logger.info(f"⏰ Current time: {now.isoformat()}, Checking codes created after: {recent_cutoff.isoformat()}")
             
-            for edge in discount_nodes:
+            for i, edge in enumerate(discount_nodes):
                 discount = edge["node"]["discount"]
                 if not discount:
                     continue
@@ -401,6 +403,12 @@ async def check_existing_codes_by_customer(shop_domain: str, access_token: str, 
                 ends_at = datetime.fromisoformat(discount["endsAt"].replace("Z", "+00:00"))
                 usage_count = discount.get("asyncUsageCount", 0)
                 status = discount.get("status", "ACTIVE")
+                title = discount.get("title", "")
+                
+                codes = discount.get("codes", {}).get("edges", [])
+                code_value = codes[0]["node"]["code"] if codes else "NO_CODE"
+                
+                logger.info(f"📋 Code #{i+1}: {code_value} | Title: {title} | Status: {status} | Usage: {usage_count} | Created: {starts_at.isoformat()}")
                 
                 # If code is active, unused, and created recently, return it
                 if (status == "ACTIVE" and 
@@ -408,17 +416,16 @@ async def check_existing_codes_by_customer(shop_domain: str, access_token: str, 
                     starts_at >= recent_cutoff and 
                     ends_at > now):
                     
-                    codes = discount.get("codes", {}).get("edges", [])
                     if codes:
                         code = codes[0]["node"]["code"]
-                        logger.info(f"✅ Found existing unused code: {code}")
+                        logger.info(f"✅ Found existing unused code: {code} (created {starts_at.isoformat()})")
                         return {
                             "code": code,
                             "created_at": starts_at.isoformat(),
                             "expires_at": ends_at.isoformat()
                         }
             
-            logger.info(f"📝 No existing active codes found for recent time period")
+            logger.info(f"📝 No existing active codes found for recent time period (checked {len(discount_nodes)} codes)")
             return None
             
         else:
