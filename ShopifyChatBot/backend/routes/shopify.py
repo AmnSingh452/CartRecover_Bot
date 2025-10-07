@@ -389,7 +389,8 @@ async def check_existing_codes_by_customer(shop_domain: str, access_token: str, 
             logger.info(f"🔍 Found {len(discount_nodes)} total discount codes to check")
             
             # Look for unused codes created in the last 2 hours (recent enough to be from same session)
-            now = datetime.utcnow()
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
             recent_cutoff = now - timedelta(hours=2)  
             logger.info(f"⏰ Current time: {now.isoformat()}, Checking codes created after: {recent_cutoff.isoformat()}")
             
@@ -399,31 +400,35 @@ async def check_existing_codes_by_customer(shop_domain: str, access_token: str, 
                     continue
                 
                 # Check if code is still active and unused
-                starts_at = datetime.fromisoformat(discount["startsAt"].replace("Z", "+00:00"))
-                ends_at = datetime.fromisoformat(discount["endsAt"].replace("Z", "+00:00"))
-                usage_count = discount.get("asyncUsageCount", 0)
-                status = discount.get("status", "ACTIVE")
-                title = discount.get("title", "")
-                
-                codes = discount.get("codes", {}).get("edges", [])
-                code_value = codes[0]["node"]["code"] if codes else "NO_CODE"
-                
-                logger.info(f"📋 Code #{i+1}: {code_value} | Title: {title} | Status: {status} | Usage: {usage_count} | Created: {starts_at.isoformat()}")
-                
-                # If code is active, unused, and created recently, return it
-                if (status == "ACTIVE" and 
-                    usage_count == 0 and 
-                    starts_at >= recent_cutoff and 
-                    ends_at > now):
+                try:
+                    starts_at = datetime.fromisoformat(discount["startsAt"].replace("Z", "+00:00"))
+                    ends_at = datetime.fromisoformat(discount["endsAt"].replace("Z", "+00:00"))
+                    usage_count = discount.get("asyncUsageCount", 0)
+                    status = discount.get("status", "ACTIVE")
+                    title = discount.get("title", "")
                     
-                    if codes:
-                        code = codes[0]["node"]["code"]
-                        logger.info(f"✅ Found existing unused code: {code} (created {starts_at.isoformat()})")
-                        return {
-                            "code": code,
-                            "created_at": starts_at.isoformat(),
-                            "expires_at": ends_at.isoformat()
-                        }
+                    codes = discount.get("codes", {}).get("edges", [])
+                    code_value = codes[0]["node"]["code"] if codes else "NO_CODE"
+                    
+                    logger.info(f"📋 Code #{i+1}: {code_value} | Title: {title} | Status: {status} | Usage: {usage_count} | Created: {starts_at.isoformat()}")
+                    
+                    # If code is active, unused, and created recently, return it
+                    if (status == "ACTIVE" and 
+                        usage_count == 0 and 
+                        starts_at >= recent_cutoff and 
+                        ends_at > now):
+                        
+                        if codes:
+                            code = codes[0]["node"]["code"]
+                            logger.info(f"✅ Found existing unused code: {code} (created {starts_at.isoformat()})")
+                            return {
+                                "code": code,
+                                "created_at": starts_at.isoformat(),
+                                "expires_at": ends_at.isoformat()
+                            }
+                except Exception as datetime_error:
+                    logger.error(f"❌ Error processing code #{i+1}: {datetime_error}")
+                    continue
             
             logger.info(f"📝 No existing active codes found for recent time period (checked {len(discount_nodes)} codes)")
             return None
