@@ -241,20 +241,40 @@ Product:"""
         logger.info(f"📦 Processing {len(products)} products from Shopify response")
         
         for i, item in enumerate(products):
-            node = item.get("node", {})
-            if node:
-                product_title = node.get("title")
+            try:
+                node = item.get("node", {})
+                if not node:
+                    logger.debug(f"  Product #{i+1}: Skipping - no node data")
+                    continue
+                    
+                product_title = node.get("title", "Unknown Product")
                 product_price = node.get("priceRange", {}).get("minVariantPrice", {}).get("amount", "N/A")
                 logger.info(f"  Product #{i+1}: '{product_title}' - ${product_price}")
+                
+                # Safely get image URL
+                images_edges = node.get("images", {}).get("edges", [])
+                image_url = None
+                if images_edges and len(images_edges) > 0:
+                    image_node = images_edges[0].get("node", {})
+                    image_url = image_node.get("src")
+                    logger.debug(f"    Image URL: {image_url}")
+                else:
+                    logger.debug(f"    No image available for product: {product_title}")
+                
                 recommendations.append({
                     "id": node.get("id"),
                     "name": product_title,
                     "price": product_price,
                     "currency": node.get("priceRange", {}).get("minVariantPrice", {}).get("currencyCode", ""),
-                    "description": node.get("description"),
+                    "description": node.get("description", ""),
                     "url": node.get("onlineStoreUrl"),
-                    "image": node.get("images", {}).get("edges", [{}])[0].get("node", {}).get("src")
+                    "image": image_url
                 })
+                
+            except Exception as product_error:
+                logger.error(f"❌ Error processing product #{i+1}: {product_error}")
+                logger.debug(f"    Product data: {item}")
+                continue  # Skip this product and continue with the next one
         
         logger.info(f"✅ Created {len(recommendations)} recommendation objects")
         
