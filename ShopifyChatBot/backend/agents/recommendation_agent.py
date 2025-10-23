@@ -97,7 +97,7 @@ Product:"""
         if query:
             graphql_query = f"""
             query getProducts($query: String) {{
-                products(first: 8, query: $query, sortKey: {sort_key}) {{
+                products(first: 8, query: $query, sortKey: TITLE) {{
                     edges {{
                         node {{
                             id
@@ -124,10 +124,10 @@ Product:"""
             """
             variables = {"query": query}
         else:
-            # Fetch popular/best-selling products when no query
+            # Fetch products when no query (using TITLE sort as it's always valid)
             graphql_query = f"""
             query getProducts {{
-                products(first: 8, sortKey: BEST_SELLING) {{
+                products(first: 8, sortKey: TITLE) {{
                     edges {{
                         node {{
                             id
@@ -162,31 +162,47 @@ Product:"""
             ) as response:
                 if response.status == 200:
                     data = await response.json()
-                    logger.debug(f"Raw Shopify product response: {json.dumps(data, indent=2)}")
+                    logger.info(f"📡 Shopify GraphQL Response Status: 200")
+                    
+                    if "errors" in data:
+                        logger.error(f"❌ GraphQL Errors: {data['errors']}")
+                        return {"errors": data["errors"]}
+                    
+                    products = data.get("data", {}).get("products", {}).get("edges", [])
+                    logger.info(f"✅ Successfully fetched {len(products)} products from Shopify")
+                    
+                    for i, edge in enumerate(products[:3]):  # Log first 3 products
+                        node = edge.get("node", {})
+                        title = node.get("title", "No title")
+                        price = node.get("priceRange", {}).get("minVariantPrice", {}).get("amount", "No price")
+                        logger.info(f"  Product {i+1}: {title} - ${price}")
+                    
                     return data
                 else:
                     error_text = await response.text()
-                    logger.error(f"Error fetching products: {error_text}")
-                    return {"error": f"Failed to fetch products: {error_text}"}
+                    logger.error(f"❌ HTTP Error {response.status}: {error_text}")
+                    return {"error": f"Failed to fetch products: HTTP {response.status}"}
 
     async def get_recommendations(self, message: str, shopify_access_token: str, shopify_store_url: str) -> Dict[str, Any]:
         """
         Generate product recommendations based on the message by fetching from Shopify.
         Includes fuzzy matching and fallback to popular products.
         """
-        logger.debug(f"Generating recommendations for: {message}")
+        logger.info(f"🔍 RecommendationAgent.get_recommendations() called with message: '{message}'")
+        logger.info(f"🏪 Shop: {shopify_store_url}, Token present: {'Yes' if shopify_access_token else 'No'}")
         
         # Use GPT to extract relevant keywords from the message
         search_query = await self._extract_keywords_with_gpt(message)
-        logger.info(f"Extracted search query for Shopify: {search_query}")
+        logger.info(f"🔎 Extracted search query for Shopify: '{search_query}'")
 
         # If no specific product mentioned, get popular products directly
         if not search_query:
-            logger.info("No specific product mentioned, fetching popular products")
+            logger.info("📊 No specific product mentioned, fetching popular products")
             shopify_response = await self.fetch_products(shopify_access_token, shopify_store_url, query=None)
             search_query = "popular items"
         else:
             # Try the extracted query first
+            logger.info(f"🎯 Fetching products for query: '{search_query}'")
             shopify_response = await self.fetch_products(shopify_access_token, shopify_store_url, query=search_query)
         
         if "errors" in shopify_response:
@@ -222,21 +238,28 @@ Product:"""
                 search_query = "popular items"
         
         recommendations = []
-        for item in products:
+        logger.info(f"📦 Processing {len(products)} products from Shopify response")
+        
+        for i, item in enumerate(products):
             node = item.get("node", {})
             if node:
+                product_title = node.get("title")
+                product_price = node.get("priceRange", {}).get("minVariantPrice", {}).get("amount", "N/A")
+                logger.info(f"  Product #{i+1}: '{product_title}' - ${product_price}")
                 recommendations.append({
                     "id": node.get("id"),
-                    "name": node.get("title"),
-                    "price": node.get("priceRange", {}).get("minVariantPrice", {}).get("amount", "N/A"),
+                    "name": product_title,
+                    "price": product_price,
                     "currency": node.get("priceRange", {}).get("minVariantPrice", {}).get("currencyCode", ""),
                     "description": node.get("description"),
                     "url": node.get("onlineStoreUrl"),
                     "image": node.get("images", {}).get("edges", [{}])[0].get("node", {}).get("src")
                 })
         
+        logger.info(f"✅ Created {len(recommendations)} recommendation objects")
+        
         if not recommendations:
-            logger.info("No recommendations found from Shopify even with fallbacks.")
+            logger.warning("❌ No recommendations found from Shopify even with fallbacks.")
             return {
                 "recommendations": [],
                 "confidence": 0.3,
@@ -251,12 +274,15 @@ Product:"""
         else:
             reason = "Here are some recommended products:"
 
-        return {
+        result = {
             "recommendations": recommendations,
             "confidence": 0.9,
             "reason": reason,
             "search_term": search_query
         }
+        
+        logger.info(f"🎉 RecommendationAgent returning: {len(recommendations)} products, reason: '{reason}'")
+        return result
 
     def _get_broader_search_terms(self, query: str) -> List[str]:
         """
