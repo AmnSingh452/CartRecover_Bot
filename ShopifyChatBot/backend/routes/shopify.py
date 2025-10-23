@@ -231,10 +231,13 @@ async def get_recommendations(request: Request, pool=Depends(get_db_pool)):
                     }
                     """
                     
+                    print(f"🔍 Fetching popular products from: {shop_domain}")
                     pop_resp = requests.post(graphql_url, headers=headers, json={"query": popular_query}, timeout=10)
+                    print(f"📡 Popular products API response: {pop_resp.status_code}")
                     if pop_resp.status_code == 200:
                         try:
                             data = pop_resp.json()
+                            print(f"📊 GraphQL response data: {data}")
                             if "data" in data and "products" in data["data"]:
                                 for edge in data["data"]["products"]["edges"]:
                                     product = edge["node"]
@@ -268,56 +271,73 @@ async def get_recommendations(request: Request, pool=Depends(get_db_pool)):
                     seen.add(rec["id"])
             # If no recommendations found, return mock data
             if not unique_recs:
-                print("🔄 No real recommendations found, using mock data")
+                print(f"🔄 No real recommendations found for shop: {shop_domain}")
+                print(f"📊 Attempted: Cart-based ({len(product_ids)} products), Customer-based ({'Yes' if customer_id else 'No'}), Popular products")
+                print("🔄 Using mock data as fallback - this suggests Shopify API may not have products or API calls are failing")
                 unique_recs = get_mock_recommendations()
+            else:
+                print(f"✅ Found {len(unique_recs)} real products from Shopify for shop: {shop_domain}")
             return JSONResponse(content={"recommendations": unique_recs[:4]})
         except Exception as shopify_error:
             print(f"❌ Shopify API error: {shopify_error}")
+            print(f"🏪 Shop: {shop_domain}, Products: {product_ids}, Customer: {customer_id}")
             print("🔄 Falling back to mock data due to Shopify API error")
             return JSONResponse(content={"recommendations": get_mock_recommendations()})
     except Exception as e:
         print(f"❌ General error in recommendations API: {e}")
+        print(f"🏪 Shop: {shop_domain}, Products: {product_ids}, Customer: {customer_id}")
         print("🔄 Falling back to mock data due to general error")
         return JSONResponse(content={"recommendations": get_mock_recommendations()})
 
 def get_mock_recommendations():
-    """Return mock product recommendations when real API fails"""
+    """
+    Return fallback product recommendations when Shopify API fails.
+    
+    ⚠️ WARNING: This is fallback data used when Shopify API calls fail.
+    These products may not exist in your actual store.
+    
+    To fix this issue:
+    1. Check if your Shopify access token is valid
+    2. Verify your shop domain is correct
+    3. Ensure your store has products
+    4. Check GraphQL API permissions
+    """
     return [
         {
-            "id": 8001,
-            "title": "Classic Cotton T-Shirt",
-            "handle": "classic-cotton-t-shirt",
-            "description": "Comfortable cotton t-shirt perfect for everyday wear.",
-            "vendor": "Fashion Co",
-            "images": [{"src": "https://cdn.shopify.com/s/files/1/0001/0001/products/tshirt.jpg"}],
-            "variants": [{"price": "24.99", "compare_at_price": "29.99"}]
+            "id": "fallback-1",
+            "title": "🔄 Product recommendations temporarily unavailable",
+            "handle": "api-fallback-product-1",
+            "description": "We're having trouble connecting to your product catalog right now. Please try again in a moment, or contact support if this issue persists.",
+            "vendor": "System Message",
+            "images": [{"src": "https://via.placeholder.com/300x300?text=Product+Unavailable"}],
+            "variants": [{"price": "N/A", "compare_at_price": None}]
         },
         {
-            "id": 8002,
-            "title": "Denim Jeans", 
-            "handle": "denim-jeans",
-            "description": "Premium denim jeans with perfect fit.",
-            "vendor": "Denim Works",
-            "images": [{"src": "https://cdn.shopify.com/s/files/1/0001/0001/products/jeans.jpg"}],
-            "variants": [{"price": "79.99", "compare_at_price": "99.99"}]
+            "id": "fallback-2", 
+            "title": "💡 Check your store setup",
+            "handle": "api-fallback-product-2",
+            "description": "This message appears when we can't fetch real products from your Shopify store. Please verify your store has products and API access is configured correctly.",
+            "vendor": "System Message",
+            "images": [{"src": "https://via.placeholder.com/300x300?text=API+Issue"}],
+            "variants": [{"price": "N/A", "compare_at_price": None}]
         },
         {
-            "id": 8003,
-            "title": "Leather Sneakers",
-            "handle": "leather-sneakers", 
-            "description": "Stylish leather sneakers for casual outings.",
-            "vendor": "Shoe Store",
-            "images": [{"src": "https://cdn.shopify.com/s/files/1/0001/0001/products/sneakers.jpg"}],
-            "variants": [{"price": "120.00"}]
+            "id": "fallback-3",
+            "title": "🛠️ API Connection Issue",
+            "handle": "api-fallback-product-3", 
+            "description": "The chatbot cannot currently access your product catalog. This could be due to API permissions, network issues, or store configuration problems.",
+            "vendor": "System Message",
+            "images": [{"src": "https://via.placeholder.com/300x300?text=Connection+Issue"}],
+            "variants": [{"price": "N/A", "compare_at_price": None}]
         },
         {
-            "id": 8004,
-            "title": "Wool Sweater",
-            "handle": "wool-sweater",
-            "description": "Warm and cozy wool sweater for cold days.", 
-            "vendor": "Knit Co",
-            "images": [{"src": "https://cdn.shopify.com/s/files/1/0001/0001/products/sweater.jpg"}],
-            "variants": [{"price": "89.99", "compare_at_price": "119.99"}]
+            "id": "fallback-4",
+            "title": "📞 Contact Support",
+            "handle": "api-fallback-product-4",
+            "description": "If you continue seeing this message, please contact technical support to resolve the product catalog connection issue.",
+            "vendor": "System Message",
+            "images": [{"src": "https://via.placeholder.com/300x300?text=Need+Help"}],
+            "variants": [{"price": "N/A", "compare_at_price": None}]
         }
     ]
 
