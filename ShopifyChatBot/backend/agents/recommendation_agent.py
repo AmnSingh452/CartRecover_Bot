@@ -180,8 +180,24 @@ Product:"""
                     for i, edge in enumerate(products[:3]):  # Log first 3 products
                         node = edge.get("node", {})
                         title = node.get("title", "No title")
-                        price = node.get("priceRange", {}).get("minVariantPrice", {}).get("amount", "No price")
-                        logger.info(f"  Product {i+1}: {title} - ${price}")
+                        raw_price = node.get("priceRange", {}).get("minVariantPrice", {}).get("amount", "No price")
+                        currency = node.get("priceRange", {}).get("minVariantPrice", {}).get("currencyCode", "")
+                        
+                        # Convert price for logging consistency
+                        if raw_price != "No price" and raw_price:
+                            try:
+                                price_float = float(raw_price)
+                                if currency == "INR":
+                                    display_price = price_float / 100
+                                else:
+                                    display_price = price_float
+                                formatted_price = f"{display_price:.2f} {currency}"
+                            except (ValueError, TypeError):
+                                formatted_price = f"{raw_price} {currency}"
+                        else:
+                            formatted_price = f"{raw_price} {currency}"
+                        
+                        logger.info(f"  Product {i+1}: {title} - {formatted_price}")
                     
                     return data
                 else:

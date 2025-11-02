@@ -247,16 +247,23 @@ class AgentCoordinator:
                     else:
                         raw_humanizer_input = result.get("reason", "I couldn't find any specific recommendations at the moment. Please try a different search term or browse our store.")
 
-                    humanized_response = await self.humanizer_agent.humanize_response({
-                        "response": raw_humanizer_input,
-                        "agent_used": "recommendation_agent",
-                        "recommendations": result.get("recommendations", []),
-                        "history": history,
-                        "customer_info": customer_info
-                    })
+                    # For recommendations, preserve the rich formatting by skipping the humanizer
+                    # and using the formatted product cards directly
+                    if "recommendations" in result and result["recommendations"]:
+                        final_response = raw_humanizer_input
+                    else:
+                        # Only humanize if there are no product cards to preserve
+                        humanized_response = await self.humanizer_agent.humanize_response({
+                            "response": raw_humanizer_input,
+                            "agent_used": "recommendation_agent",
+                            "recommendations": result.get("recommendations", []),
+                            "history": history,
+                            "customer_info": customer_info
+                        })
+                        final_response = humanized_response
                     
                     response_data = {
-                        "response": humanized_response,
+                        "response": final_response,
                         "confidence": classification["confidence"],
                         "agent_used": "recommendation_agent",
                         "recommendations": result.get("recommendations", []),
