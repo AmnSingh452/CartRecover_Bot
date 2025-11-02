@@ -102,8 +102,11 @@ Product:"""
                         node {{
                             id
                             title
+                            handle
                             description
                             onlineStoreUrl
+                            vendor
+                            productType
                             priceRange {{
                                 minVariantPrice {{
                                     amount
@@ -132,8 +135,11 @@ Product:"""
                         node {{
                             id
                             title
+                            handle
                             description
                             onlineStoreUrl
+                            vendor
+                            productType
                             priceRange {{
                                 minVariantPrice {{
                                     amount
@@ -238,6 +244,7 @@ Product:"""
                 search_query = "popular items"
         
         recommendations = []
+        seen_products = set()  # Track unique product titles to avoid duplicates
         logger.info(f"📦 Processing {len(products)} products from Shopify response")
         
         for i, item in enumerate(products):
@@ -248,8 +255,32 @@ Product:"""
                     continue
                     
                 product_title = node.get("title", "Unknown Product")
-                product_price = node.get("priceRange", {}).get("minVariantPrice", {}).get("amount", "N/A")
-                logger.info(f"  Product #{i+1}: '{product_title}' - ${product_price}")
+                
+                # Skip if we've already seen this product title (avoid duplicates)
+                if product_title in seen_products:
+                    logger.debug(f"  Product #{i+1}: Skipping duplicate - {product_title}")
+                    continue
+                    
+                seen_products.add(product_title)
+                raw_price = node.get("priceRange", {}).get("minVariantPrice", {}).get("amount", "N/A")
+                currency = node.get("priceRange", {}).get("minVariantPrice", {}).get("currencyCode", "")
+                
+                # Convert price from smallest currency unit to main unit (e.g., paise to rupees)
+                if raw_price != "N/A" and raw_price:
+                    try:
+                        price_float = float(raw_price)
+                        # For INR, divide by 100 to convert paise to rupees
+                        if currency == "INR":
+                            display_price = price_float / 100
+                        else:
+                            display_price = price_float
+                        product_price = f"{display_price:.2f}"
+                    except (ValueError, TypeError):
+                        product_price = raw_price
+                else:
+                    product_price = "N/A"
+                
+                logger.info(f"  Product #{i+1}: '{product_title}' - {currency} {product_price} (raw: {raw_price})")
                 
                 # Safely get image URL
                 images_edges = node.get("images", {}).get("edges", [])
@@ -264,12 +295,18 @@ Product:"""
                 recommendations.append({
                     "id": node.get("id"),
                     "name": product_title,
-                    "price": product_price,
-                    "currency": node.get("priceRange", {}).get("minVariantPrice", {}).get("currencyCode", ""),
+                    "price": f"{product_price} {currency}",
                     "description": node.get("description", ""),
                     "url": node.get("onlineStoreUrl"),
-                    "image": image_url
+                    "image": image_url,
+                    "handle": node.get("handle", ""),
+                    "vendor": node.get("vendor", ""),
+                    "productType": node.get("productType", "")
                 })
+                
+                # Stop adding if we have enough unique products
+                if len(recommendations) >= 6:
+                    break
                 
             except Exception as product_error:
                 logger.error(f"❌ Error processing product #{i+1}: {product_error}")

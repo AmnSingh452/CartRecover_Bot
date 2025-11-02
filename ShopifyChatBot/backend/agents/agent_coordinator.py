@@ -219,11 +219,21 @@ class AgentCoordinator:
 
                     # Check if recommendations were successfully fetched
                     if "recommendations" in result and result["recommendations"]:
-                        # Format the recommendations into a string for the humanizer
-                        recommendations_list_str = "\n".join([
-                            f"- {item.get('name', 'Unknown Product')} (Price: {item.get('price', 'N/A')} {item.get('currency', '')})"
-                            for item in result["recommendations"]
-                        ])
+                        # Format the recommendations as product cards with images and links
+                        recommendations_list_str = ""
+                        for item in result["recommendations"]:
+                            name = item.get('name', 'Unknown Product')
+                            price = item.get('price', 'N/A')
+                            url = item.get('url', '#')
+                            image = item.get('image', '')
+                            
+                            recommendations_list_str += f"\n🛍️ **{name}**\n"
+                            recommendations_list_str += f"💰 Price: {price}\n"
+                            if url and url != '#':
+                                recommendations_list_str += f"🔗 [View Product]({url})\n"
+                            if image:
+                                recommendations_list_str += f"📸 [Product Image]({image})\n"
+                            recommendations_list_str += "\n"
                         
                         # Include search context if fuzzy matching was used
                         context_note = ""
