@@ -285,6 +285,12 @@ Product:"""
                 if raw_price != "N/A" and raw_price:
                     try:
                         price_float = float(raw_price)
+                        
+                        # Skip products with 0 price (free products or no price set)
+                        if price_float == 0:
+                            logger.debug(f"  Product #{i+1}: Skipping - {product_title} has 0 price")
+                            continue
+                        
                         # For INR, divide by 100 to convert paise to rupees
                         if currency == "INR":
                             display_price = price_float / 100
@@ -292,11 +298,27 @@ Product:"""
                             display_price = price_float
                         product_price = f"{display_price:.2f}"
                     except (ValueError, TypeError):
-                        product_price = raw_price
+                        # Skip products with invalid price data
+                        logger.debug(f"  Product #{i+1}: Skipping - {product_title} has invalid price: {raw_price}")
+                        continue
                 else:
-                    product_price = "N/A"
+                    # Skip products without price information
+                    logger.debug(f"  Product #{i+1}: Skipping - {product_title} has no price data")
+                    continue
                 
                 logger.info(f"  Product #{i+1}: '{product_title}' - {currency} {product_price} (raw: {raw_price})")
+                
+                # Format price with currency symbol
+                if currency == "INR":
+                    formatted_price = f"₹{product_price}"
+                elif currency == "USD":
+                    formatted_price = f"${product_price}"
+                elif currency == "EUR":
+                    formatted_price = f"€{product_price}"
+                elif currency == "GBP":
+                    formatted_price = f"£{product_price}"
+                else:
+                    formatted_price = f"{product_price} {currency}"
                 
                 # Safely get image URL
                 images_edges = node.get("images", {}).get("edges", [])
@@ -311,7 +333,7 @@ Product:"""
                 recommendations.append({
                     "id": node.get("id"),
                     "name": product_title,
-                    "price": f"{product_price} {currency}",
+                    "price": formatted_price,
                     "description": node.get("description", ""),
                     "url": node.get("onlineStoreUrl"),
                     "image": image_url,

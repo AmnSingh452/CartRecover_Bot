@@ -226,24 +226,26 @@ class AgentCoordinator:
                             price = item.get('price', 'N/A')
                             url = item.get('url', '#')
                             image = item.get('image', '')
+                            handle = item.get('handle', '')
                             
-                            recommendations_list_str += f"\n🛍️ **{name}**\n"
-                            recommendations_list_str += f"💰 Price: {price}\n"
+                            # Create clean product card format
+                            recommendations_list_str += f"� **{name}**\n"
+                            recommendations_list_str += f"💰 {price}\n"
+                            
+                            # Add clickable product link if available
                             if url and url != '#':
-                                recommendations_list_str += f"🔗 [View Product]({url})\n"
+                                recommendations_list_str += f"🔗 [Shop Now]({url})\n"
+                            elif handle:
+                                # For now, just show handle - frontend can construct full URL
+                                recommendations_list_str += f"🔗 Product ID: {handle}\n"
+                            
                             if image:
-                                recommendations_list_str += f"📸 [Product Image]({image})\n"
+                                recommendations_list_str += f"🖼️ [View Image]({image})\n"
                             recommendations_list_str += "\n"
                         
-                        # Include search context if fuzzy matching was used
-                        context_note = ""
-                        if "search_term" in result and result["search_term"]:
-                            if result["search_term"] == "popular items":
-                                context_note = " Here are some popular items from our store:"
-                            else:
-                                context_note = f" Based on your request for '{result['search_term']}':"
-                        
-                        raw_humanizer_input = f"{result.get('reason', 'Here are some products I recommend')}{context_note}\n{recommendations_list_str}"
+                        # Simple, clean introduction
+                        intro_text = "Here are some great products for you:\n\n"
+                        raw_humanizer_input = intro_text + recommendations_list_str
                     else:
                         raw_humanizer_input = result.get("reason", "I couldn't find any specific recommendations at the moment. Please try a different search term or browse our store.")
 
